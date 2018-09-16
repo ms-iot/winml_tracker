@@ -1,0 +1,8 @@
+<launch>
+  <!-- NOTE: The image properties need to be valid for the camera, or the node will auto select the closest values -->
+  <node pkg="cv_camera" type="cv_camera_node" name="cv_camera" output="screen">
+    <param name="rate" value="1.0"/>
+    <param name="image_width" value="640"/>
+    <param name="image_height" value="480"/>
+  </node>
+</launch>
