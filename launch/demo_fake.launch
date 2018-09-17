@@ -1,0 +1,29 @@
+ <launch>
+  <arg name="multi_robot_name" default=""/>
+  <arg name="set_lidar_frame_id" default="base_scan"/>
+  <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="cmd_vel_topic" default="/cmd_vel" />
+  <arg name="odom_topic" default="odom" />
+
+  <param name="model" value="$(arg model)"/>
+
+  <include file="package://turtlebot3_bringup/launch/includes/description.launch.xml">
+    <arg name="model" value="$(arg model)" />
+  </include>
+
+  <!-- turtlebot3_teleop_key already has its own built in velocity smoother -->
+  <node pkg="turtlebot3_teleop" type="turtlebot3_teleop_key.py" name="turtlebot3_teleop_keyboard"  output="screen">
+  </node>
+
+  <node pkg="winml_tracker" type="winml_tracker_demo_node" name="winml_tracker_demo_node" output="screen" />
+  <!-- node pkg="winml_tracker" type="winml_tracker_fake_node" name="winml_tracker_demo_fake_node" output="screen" / -->
+
+  <node pkg="turtlebot3_fake" type="turtlebot3_fake_node" name="turtlebot3_fake_node" output="screen" />
+
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" output="screen">
+    <param name="publish_frequency" type="double" value="50.0" />
+  </node>
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d package://turtlebot3_fake/rviz/turtlebot3_fake.rviz"/>
+  
+</launch>
