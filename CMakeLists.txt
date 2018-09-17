@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   std_msgs
   visualization_msgs
+  sensor_msgs
 )
 
 find_package(OpenCV REQUIRED)
@@ -35,7 +36,14 @@ add_executable(${PROJECT_NAME}_node src/winml_tracker.cpp src/yolo_box.cpp)
 add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES})
 
-install(TARGETS ${PROJECT_NAME}_node
+add_executable(${PROJECT_NAME}_demo_node src/demo.cpp)
+target_link_libraries(${PROJECT_NAME}_demo_node ${catkin_LIBRARIES})
+
+add_executable(${PROJECT_NAME}_fake src/ml_fake.cpp)
+target_link_libraries(${PROJECT_NAME}_fake ${catkin_LIBRARIES})
+
+
+install(TARGETS ${PROJECT_NAME}_node ${PROJECT_NAME}_demo_node ${PROJECT_NAME}_fake
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

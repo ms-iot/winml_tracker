@@ -1,0 +1,27 @@
+<launch>
+  <arg name="multi_robot_name" default=""/>
+  <arg name="set_lidar_frame_id" default="base_scan"/>
+  <arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+  <arg name="cmd_vel_topic" default="/cmd_vel" />
+  <arg name="odom_topic" default="odom" />
+
+  <param name="model" value="$(arg model)"/>
+
+  <include file="package://turtlebot3_bringup/launch/turtlebot3_core-win.launch">
+    <arg name="multi_robot_name" value="$(arg multi_robot_name)"/>
+  </include>
+  <include file="package://turtlebot3_bringup/launch/turtlebot3_lidar-win.launch">
+    <arg name="set_frame_id" value="$(arg set_lidar_frame_id)"/>
+  </include>
+  <include file="package://turtlebot3_bringup/launch/includes/description.launch.xml">
+    <arg name="model" value="$(arg model)" />
+  </include>
+
+  <!-- turtlebot3_teleop_key already has its own built in velocity smoother -->
+  <node pkg="turtlebot3_teleop" type="turtlebot3_teleop_key.py" name="turtlebot3_teleop_keyboard"  output="screen">
+  </node>
+
+  <node pkg="turtlebot3_bringup" type="turtlebot3_diagnostics" name="turtlebot3_diagnostics" output="screen"/>
+
+  <node pkg="winml_tracker" type="winml_tracker_demo_node" name="winml_tracker_demo_node" output="screen" />
+  </launch>
