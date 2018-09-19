@@ -37,6 +37,6 @@ namespace yolo
         static int GetOffset(int x, int y, int channel);
         static float IntersectionOverUnion(YoloBox a, YoloBox b);
         static float Sigmoid(float value);
-        static void Softmax(std::vector<float> values);
+        static void Softmax(std::vector<float> &values);
     };
 }

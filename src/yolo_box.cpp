@@ -107,7 +107,7 @@ namespace yolo
         return k / (1.0f + k);
     }
 
-    void YoloResultsParser::Softmax(std::vector<float> values)
+    void YoloResultsParser::Softmax(std::vector<float> &values)
     {
         float max_val{ *std::max_element(values.begin(), values.end()) };
         std::transform(values.begin(), values.end(), values.begin(),

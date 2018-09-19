@@ -16,7 +16,7 @@
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
-#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include "winml_tracker/yolo_box.h"
 
@@ -44,7 +44,7 @@ LearningModelSession session = nullptr;
 ros::Publisher detect_pub;
 
 void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
-    ROS_INFO_STREAM("Received image: " << image->header.seq);
+    //ROS_INFO_STREAM("Received image: " << image->header.seq);
 
     // Convert back to an OpenCV Image
     cv_bridge::CvImagePtr cv_ptr;
@@ -59,19 +59,21 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
     }
 
     // TODO: If the image is not the right dimensions, center crop or resize
-    // And set the image to 32-bit floating point values for tensorization.
+    cv::Mat rgb_image;
+    cv::Mat image_resized;
+    cv::Size size(416, 416);
+    cv::resize(cv_ptr->image, image_resized, size, 0, 0, cv::INTER_CUBIC);
+
+    // Convert to RGB
+    cv::cvtColor(image_resized, rgb_image, cv::COLOR_BGR2RGB);
+
+    // Set the image to 32-bit floating point values for tensorization.
     cv::Mat image_32_bit;
-    if (cv_ptr->image.size().width != 416 || cv_ptr->image.size().height != 416)
-    {
-        cv::Mat image_resized;
-        cv::Size size(416, 416);
-        cv::resize(cv_ptr->image, image_resized, size, 0, 0, cv::INTER_CUBIC);
-        image_resized.convertTo(image_32_bit, CV_32FC1);
-    }
-    else
-    {
-        cv_ptr->image.convertTo(image_32_bit, CV_32FC1);
-    }
+    rgb_image.convertTo(image_32_bit, CV_32F);
+
+    // Extract color channels from interleaved data
+    cv::Mat channels[3];
+    cv::split(image_32_bit, channels);
 
     // Setup the model binding
     LearningModelBinding binding(session);
@@ -79,8 +81,10 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
     binding.Bind(L"grid", TensorFloat::Create(grid_shape));
 
     // Create a Tensor from the CV Mat and bind it to the session
-    std::vector<float> image_data;
-    image_data.assign(1 * 3 * 416 * 416, (const float &)image_32_bit.data);
+    std::vector<float> image_data(1 * 3 * 416 * 416);
+    memcpy(&image_data[0], (float *)channels[0].data, 416 * 416 * sizeof(float));
+    memcpy(&image_data[416 * 416], (float *)channels[1].data, 416 * 416 * sizeof(float));
+    memcpy(&image_data[2 * 416 * 416], (float *)channels[2].data, 416 * 416 * sizeof(float));
     TensorFloat image_tensor = TensorFloat::CreateFromArray({ 1, 3, 416, 416 }, image_data);
     binding.Bind(L"image", image_tensor);
 
@@ -104,7 +108,7 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
     std::vector<visualization_msgs::Marker> markers;
     for (std::vector<YoloBox>::iterator it = boxes.begin(); it != boxes.end(); ++it)
     {
-        if (it->label == "person")
+        if (it->label == "person" && it->confidence >= 0.5f)
         {
             ROS_INFO("Person detected!");
 
@@ -114,10 +118,10 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
             marker.ns = "winml";
             marker.id = count++;
             marker.type = visualization_msgs::Marker::SPHERE;
-            marker.action = visualization_msgs::Marker::ADD;
+            marker.action = visualization_msgs::Marker::MK_ADD;
 
-            marker.pose.position.x = boxes.x + boxes.width;
-            marker.pose.position.y = boxes.y + boxes.height;
+            marker.pose.position.x = it->x + it->width / 2;
+            marker.pose.position.y = it->y + it->height / 2;
             marker.pose.position.z = 0;
             marker.pose.orientation.x = 0.0;
             marker.pose.orientation.y = 0.0;
