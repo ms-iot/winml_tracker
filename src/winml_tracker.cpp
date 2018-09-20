@@ -42,6 +42,7 @@ LearningModel model = nullptr;
 LearningModelSession session = nullptr;
 
 ros::Publisher detect_pub;
+image_transport::Publisher image_pub;
 
 void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
     //ROS_INFO_STREAM("Received image: " << image->header.seq);
@@ -137,6 +138,15 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
             marker.color.b = 1.0;
 
             markers.push_back(marker);
+
+            // Draw a bounding box on the CV image
+            cv::Scalar color(255, 255, 0);
+            cv::Rect box;
+            box.x = std::max<int>((int)it->x, 0);
+            box.y = std::max<int>((int)it->y, 0);
+            box.height = std::min<int>(image_resized.rows - box.y, (int)it->height);
+            box.width = std::min<int>(image_resized.cols - box.x, (int)it->width);
+            cv::rectangle(image_resized, box, color, 2, 8, 0);
         }
     }
 
@@ -144,6 +154,10 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
     {
         detect_pub.publish(markers);
     }
+
+    // Always publish the resized image
+    sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_resized).toImageMsg();
+    image_pub.publish(msg);
 
     // Only send one for now
     return;
@@ -160,6 +174,7 @@ int main(int argc, char **argv)
 
     image_transport::ImageTransport it(nh);
     image_transport::Subscriber sub = it.subscribe("/cv_camera/image_raw", 1, ProcessImage);
+    image_pub = it.advertise("tracked_objects/image", 1);
 
     // Load the ML model
     hstring modelPath = hstring(wstring_to_utf8().from_bytes("C:\\Users\\Stuart\\Downloads\\onnxzoo_winmlperf_tiny_yolov2.onnx"));
