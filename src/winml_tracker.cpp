@@ -1,4 +1,4 @@
-#pragma comment(lib, "windowsapp") 
+#pragma comment(lib, "windowsapp")
 
 #define NOMINMAX
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNING 1 // The C++ Standard doesn't provide equivalent non-deprecated functionality yet.
@@ -170,6 +170,14 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "winml_tracker");
     ros::NodeHandle nh;
 
+    // Parameters.
+    std::string yoloModelPath;
+    if (nh.getParam("yolo_model_path", yoloModelPath))
+    {
+        ROS_ERROR("yolo_model_path parameter has not been set.");
+        nh.shutdown();
+    }
+
     detect_pub = nh.advertise<visualization_msgs::MarkerArray>("tracked_objects", 1);
 
     image_transport::ImageTransport it(nh);
@@ -177,7 +185,7 @@ int main(int argc, char **argv)
     image_pub = it.advertise("tracked_objects/image", 1);
 
     // Load the ML model
-    hstring modelPath = hstring(wstring_to_utf8().from_bytes("C:\\Users\\Stuart\\Downloads\\onnxzoo_winmlperf_tiny_yolov2.onnx"));
+    hstring modelPath = hstring(wstring_to_utf8().from_bytes(yoloModelPath));
     model = LearningModel::LoadFromFilePath(modelPath);
 
     // Create a WinML session

@@ -1,8 +1,12 @@
 <launch>
+  <!-- Topic of the video stream. -->
+  <arg name="yolo_model_path" default="C:\\Users\\Stuart\\Downloads\\onnxzoo_winmlperf_tiny_yolov2.onnx"/>
+
   <!-- NOTE: The image properties need to be valid for the camera, or the node will auto select the closest values -->
   <node pkg="cv_camera" type="cv_camera_node" name="cv_camera" output="screen">
     <param name="rate" value="1.0"/>
     <param name="image_width" value="640"/>
     <param name="image_height" value="480"/>
+    <param name="yolo_model_path" value="$(arg yolo_model_path)"/>
   </node>
 </launch>
