@@ -176,6 +176,7 @@ int main(int argc, char **argv)
     {
         ROS_ERROR("yolo_model_path parameter has not been set.");
         nh.shutdown();
+        return 0;
     }
 
     detect_pub = nh.advertise<visualization_msgs::MarkerArray>("tracked_objects", 1);
