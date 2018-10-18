@@ -1,5 +1,6 @@
 <launch>
-  <!-- Topic of the video stream. -->
+  <!-- Path to a YOLO model. -->
+  <!-- It can be downloaded from https://www.cntk.ai/OnnxModels/tiny_yolov2/opset_7/tiny_yolov2.tar.gz -->
   <arg name="yolo_model_path" default="C:\\Users\\Stuart\\Downloads\\onnxzoo_winmlperf_tiny_yolov2.onnx"/>
 
   <!-- NOTE: The image properties need to be valid for the camera, or the node will auto select the closest values -->
