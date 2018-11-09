@@ -1,8 +1,14 @@
 #pragma comment(lib, "windowsapp")
 
-#define NOMINMAX
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNING 1 // The C++ Standard doesn't provide equivalent non-deprecated functionality yet.
 
+#include <ros/ros.h>
+#include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
+#include <visualization_msgs/MarkerArray.h>
+
+
+// Include ROS files before Windows, as there are overlapping symbols
 #include <vcruntime.h>
 #include <windows.h>
 
@@ -12,11 +18,6 @@
 #include <winrt/Windows.Storage.h>
 #include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.Graphics.Imaging.h>
-
-#include <ros/ros.h>
-#include <cv_bridge/cv_bridge.h>
-#include <image_transport/image_transport.h>
-#include <visualization_msgs/MarkerArray.h>
 
 #include "winml_tracker/yolo_box.h"
 
@@ -119,7 +120,7 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
             marker.ns = "winml";
             marker.id = count++;
             marker.type = visualization_msgs::Marker::SPHERE;
-            marker.action = visualization_msgs::Marker::MK_ADD;
+            marker.action = visualization_msgs::Marker::ADD;
 
             marker.pose.position.x = it->x + it->width / 2;
             marker.pose.position.y = it->y + it->height / 2;
