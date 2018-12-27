@@ -85,12 +85,24 @@ TEST(TrackerTester, poseTableTest)
 TEST(TrackerTester, poseTest)
 {
     MarkerHelper mh;
+	image_transport::ImageTransport it(*g_nh);
+	image_transport::Publisher image_pub;
+	image_pub = it.advertise("debug/image", 1, true);
     ros::Subscriber sub = g_nh->subscribe("tracked_objects", 0, &MarkerHelper::cb, &mh);
-
     cv::Mat image_data = cv::imread( "C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\sample_image_1.JPG");
-    
+
+	cv::Size s = image_data.size();
+	if (s.width > 416 || s.height > 416)
+	{
+		// crop
+		cv::Rect ROI((s.width - 416) / 2, (s.height - 416) / 2, 416, 416);
+		image_data = image_data(ROI);
+	}
+
     sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_data).toImageMsg();
     EXPECT_NE(msg, nullptr);
+	image_pub.publish(msg);
+	ros::spinOnce();
 
     hstring modelPath = hstring(wstring_to_utf8().from_bytes("C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\shoe.onnx"));
     model = LearningModel::LoadFromFilePath(modelPath);

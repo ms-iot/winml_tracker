@@ -159,11 +159,21 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
         return;
     }
 
-    // TODO: If the image is not the right dimensions, center crop or resize
-    cv::Mat rgb_image;
-    cv::Mat image_resized;
-    cv::Size size(416, 416);
-    cv::resize(cv_ptr->image, image_resized, size, 0, 0, cv::INTER_CUBIC);
+	cv::Size size(416, 416);
+	cv::Mat rgb_image;
+	cv::Mat image_resized;
+	// TODO: If the image is not the right dimensions, center crop or resize
+	cv::Size s = cv_ptr->image.size();
+	if (s.width > 416 || s.height > 416)
+	{
+		// crop
+		cv::Rect ROI((s.width - 416) / 2, (s.height - 416) / 2, 416, 416);
+		image_resized = cv_ptr->image(ROI);
+	}
+	else
+	{
+		cv::resize(cv_ptr->image, image_resized, size, 0, 0, cv::INTER_CUBIC);
+	}
 
     // Convert to RGB
     cv::cvtColor(image_resized, rgb_image, cv::COLOR_BGR2RGB);
