@@ -31,6 +31,6 @@ namespace pose
         static Pose GetRecognizedObjects(std::vector<float> modelOutputs, float threshold = 0.3f);
     private:
         static int GetOffset(int x, int y);
-        static std::vector<float> Sigmoid(std::vector<float> values);
+        static std::vector<float> Sigmoid(const std::vector<float>& values);
     };
 }

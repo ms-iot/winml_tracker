@@ -68,9 +68,9 @@ void PoseResultsParser::initPoseTables()
 std::vector<float> operator+(const std::vector<float>& a, const std::vector<float>& b)
 {
 	std::vector<float> ret;
-	for (std::vector<float>::const_iterator aptr = a.begin(); aptr < a.end(); ptr++)
+	for (std::vector<float>::const_iterator aptr = a.begin(); aptr < a.end(); aptr++)
 	{
-		for (std::vector<float>::const_iterator bptr = b.begin(); bptr < b.end(); ptr++)
+		for (std::vector<float>::const_iterator bptr = b.begin(); bptr < b.end(); bptr++)
 		{
 			ret.push_back(*aptr + *bptr);
 		}
@@ -106,6 +106,8 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 		output.push_back(chanVec);
 	}
 
+	auto xs0 = Sigmoid(output[0]) + _gridX[0];
+
 
 
     return Pose();
@@ -120,7 +122,7 @@ int PoseResultsParser::GetOffset(int x, int y)
 	return (x * ROW_COUNT) + y;
 }
 
-static std::vector<float> Sigmoid(const std::vector<float>& values)
+std::vector<float> PoseResultsParser::Sigmoid(const std::vector<float>& values)
 {
 	std::vector<float> ret;
 
