@@ -11,7 +11,8 @@ namespace pose
 
     struct Point
     {
-
+		float x;
+		float y;
     };
 
     struct Pose

@@ -98,7 +98,7 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 	for (int c = 0; c < CLASS_COUNT; c++)
 	{
 		std::vector<float> chanVec;
-		for (int vec = 0; ROW_COUNT * COL_COUNT; vec++)
+		for (int vec = 0; vec < ROW_COUNT * COL_COUNT; vec++)
 		{
 			chanVec.push_back(modelOutputs[GetOffset(c, vec)]);
 		}
@@ -107,8 +107,51 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 	}
 
 	auto xs0 = Sigmoid(output[0]) + _gridX[0];
+	auto ys0 = Sigmoid(output[1]) + _gridY[0];
+	auto xs1 = output[2] + _gridX[0];
+	auto ys1 = output[3] + _gridY[0];
+	auto xs2 = output[4] + _gridX[0];
+	auto ys2 = output[5] + _gridY[0];
+	auto xs3 = output[6] + _gridX[0];
+	auto ys3 = output[7] + _gridY[0];
+	auto xs4 = output[8] + _gridX[0];
+	auto ys4 = output[9] + _gridY[0];
+	auto xs5 = output[10] + _gridX[0];
+	auto ys5 = output[11] + _gridY[0];
+	auto xs6 = output[12] + _gridX[0];
+	auto ys6 = output[13] + _gridY[0];
+	auto xs7 = output[14] + _gridX[0];
+	auto ys7 = output[15] + _gridY[0];
+	auto xs8 = output[16] + _gridX[0];
+	auto ys8 = output[17] + _gridY[0];
+	auto det_confs = Sigmoid(output[18]);
 
+	float max_conf = -1.0f;
+	int max_ind = -1;
+	for (int c = 0; c < ROW_COUNT * COL_COUNT; c++)
+	{
+		float conf = det_confs[c];
 
+		if (conf > max_conf)
+		{
+			max_conf = conf;
+			max_ind = c;
+		}
+	}
+
+	if (max_ind >= 0)
+	{
+		Pose pose;
+		pose.bounds.push_back({ xs0[max_ind] / (float)COL_COUNT, ys0[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs1[max_ind] / (float)COL_COUNT, ys1[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs2[max_ind] / (float)COL_COUNT, ys2[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs3[max_ind] / (float)COL_COUNT, ys3[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs4[max_ind] / (float)COL_COUNT, ys4[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs5[max_ind] / (float)COL_COUNT, ys5[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs6[max_ind] / (float)COL_COUNT, ys6[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs7[max_ind] / (float)COL_COUNT, ys7[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ xs8[max_ind] / (float)COL_COUNT, ys8[max_ind] / (float)ROW_COUNT });
+	}
 
     return Pose();
 }
