@@ -60,7 +60,7 @@ public:
 TEST(TrackerTester, poseTableTest)
 {
 	pose::PoseResultsParser::initPoseTables();
-
+/*
 	for (auto v = pose::PoseResultsParser::_gridX.begin(); v != pose::PoseResultsParser::_gridX.end(); ++v)
 	{
 		std::cout << *v << ' ';
@@ -72,6 +72,7 @@ TEST(TrackerTester, poseTableTest)
 		std::cout << *v << ' ';
 	}
 	std::cout << '\n';
+	*/
 }
 
 TEST(TrackerTester, poseTest)
@@ -82,14 +83,6 @@ TEST(TrackerTester, poseTest)
 	image_pub = it.advertise("debug/image", 1, true);
     ros::Subscriber sub = g_nh->subscribe("tracked_objects", 0, &MarkerHelper::cb, &mh);
     cv::Mat image_data = cv::imread( "C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\sample_image_1.JPG");
-
-	cv::Size s = image_data.size();
-	if (s.width > 416 || s.height > 416)
-	{
-		// crop
-		cv::Rect ROI((s.width - 416) / 2, (s.height - 416) / 2, 416, 416);
-		image_data = image_data(ROI);
-	}
 
     sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_data).toImageMsg();
     EXPECT_NE(msg, nullptr);

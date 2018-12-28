@@ -45,8 +45,10 @@ LearningModelSession session = nullptr;
 
 ros::Publisher detect_pub;
 image_transport::Publisher image_pub;
+image_transport::Publisher debug_image_pub;
 
 WinMLTracker_Type TrackerType = WinMLTracker_Yolo;
+WinMLTracker_ImageProcessing ImageProcessingType = WinMLTracker_Scale;
 
 void processYoloOutput(std::vector<float> grids, cv::Mat& image_resized)
 {
@@ -164,7 +166,8 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
 	cv::Mat image_resized;
 	// TODO: If the image is not the right dimensions, center crop or resize
 	cv::Size s = cv_ptr->image.size();
-	if (s.width > 416 || s.height > 416)
+	if (ImageProcessingType == WinMLTracker_Crop && 
+        s.width > 416 && s.height > 416)
 	{
 		// crop
 		cv::Rect ROI((s.width - 416) / 2, (s.height - 416) / 2, 416, 416);
@@ -174,6 +177,14 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
 	{
 		cv::resize(cv_ptr->image, image_resized, size, 0, 0, cv::INTER_CUBIC);
 	}
+	/*
+	sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_resized).toImageMsg();
+	while (ros::ok())
+	{
+		debug_image_pub.publish(msg);
+		ros::spinOnce();
+	}
+	*/
 
     // Convert to RGB
     cv::cvtColor(image_resized, rgb_image, cv::COLOR_BGR2RGB);
@@ -263,6 +274,7 @@ int WinMLTracker_Init(ros::NodeHandle& nh)
     image_transport::ImageTransport it(nh);
     image_transport::Subscriber sub = it.subscribe("/cv_camera/image_raw", 1, ProcessImage);
     image_pub = it.advertise("tracked_objects/image", 1);
+	debug_image_pub = it.advertise("debug/image", 1);
 
     return 0;
 }
@@ -276,6 +288,23 @@ int WinMLTracker_Startup(ros::NodeHandle& nh)
         ROS_ERROR("yolo_model_path parameter has not been set.");
         nh.shutdown();
         return 0;
+    }
+
+    std::string imageProcessingType;
+    if (nh.getParam("imageProcessing", imageProcessingType))
+    {
+        if (imageProcessingType == "crop")
+        {
+            ImageProcessingType = WinMLTracker_Crop;
+        }
+        else if (imageProcessingType == "scale")
+        {
+            ImageProcessingType = WinMLTracker_Scale;
+        }
+        else
+        {
+            // default;
+        }
     }
 
     // Load the ML model

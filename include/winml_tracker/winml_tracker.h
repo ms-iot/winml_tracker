@@ -15,4 +15,11 @@ typedef enum
     WinMLTracker_Pose
 } WinMLTracker_Type;
 
+typedef enum 
+{
+    WinMLTracker_Scale,
+    WinMLTracker_Crop
+} WinMLTracker_ImageProcessing;
+
 extern WinMLTracker_Type TrackerType;
+extern WinMLTracker_ImageProcessing ImageProcessingType;
