@@ -63,23 +63,15 @@ TEST(TrackerTester, poseTableTest)
 
 	for (auto v = pose::PoseResultsParser::_gridX.begin(); v != pose::PoseResultsParser::_gridX.end(); ++v)
 	{
-		for (auto t = v->begin(); t != v->end(); ++t)
-		{
-			std::cout << *t << ' ';
-		}
-
-		std::cout << '\n';
+		std::cout << *v << ' ';
 	}
+	std::cout << '\n';
 
 	for (auto v = pose::PoseResultsParser::_gridY.begin(); v != pose::PoseResultsParser::_gridY.end(); ++v)
 	{
-		for (auto t = v->begin(); t != v->end(); ++t)
-		{
-			std::cout << *t << ' ';
-		}
-
-		std::cout << '\n';
+		std::cout << *v << ' ';
 	}
+	std::cout << '\n';
 }
 
 TEST(TrackerTester, poseTest)

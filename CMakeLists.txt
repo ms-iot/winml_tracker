@@ -14,8 +14,11 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   roslib
   std_msgs
+  Eigen3 
   visualization_msgs
 )
+include_directories(${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
+add_definitions(${EIGEN3_DEFINITIONS})
 
 find_package(OpenCV REQUIRED)
 

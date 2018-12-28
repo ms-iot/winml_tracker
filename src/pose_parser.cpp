@@ -1,9 +1,14 @@
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
 #include "winml_tracker/pose_parser.h"
-
+#define EIGEN_DEFAULT_IO_FORMAT Eigen::IOFormat(10)
+#include <Eigen/Eigen>
 #include <algorithm>
 #include <numeric>
 #include <functional>
 #include <iostream>
+#include <codecvt>
+#include <fstream>
+#include <sstream>
 
 const int ROW_COUNT = 13;
 const int COL_COUNT = 13;
@@ -13,8 +18,8 @@ using namespace std;
 using namespace pose;
 
 bool g_init = false;
-std::vector<std::vector<float>> PoseResultsParser::_gridX;
-std::vector<std::vector<float>> PoseResultsParser::_gridY;
+std::vector<float> PoseResultsParser::_gridX;
+std::vector<float> PoseResultsParser::_gridY;
 
 
 void PoseResultsParser::initPoseTables()
@@ -33,13 +38,10 @@ void PoseResultsParser::initPoseTables()
 
 		for (int y = 0; y < ROW_COUNT; y++)
 		{
-			std::vector<float> gridX;
-			std::vector<float> gridY;
-
 			for (int x = 0; x <= COL_COUNT; x++) // confirm <= 
 			{
-				gridX.push_back((float)xCount);
-				gridY.push_back(yVal);
+				_gridX.push_back((float)xCount);
+				_gridY.push_back(yVal);
 
 				if (yCount++ == COL_COUNT - 1) // confirm col - 1
 				{
@@ -56,24 +58,20 @@ void PoseResultsParser::initPoseTables()
 					xCount++;
 				}
 			}
-
-
-			_gridX.push_back(gridX);
-			_gridY.push_back(gridY);
 		}
 	}
-
 }
 
 std::vector<float> operator+(const std::vector<float>& a, const std::vector<float>& b)
 {
 	std::vector<float> ret;
-	for (std::vector<float>::const_iterator aptr = a.begin(); aptr < a.end(); aptr++)
+	std::vector<float>::const_iterator aptr = a.begin();
+	std::vector<float>::const_iterator bptr = b.begin();
+	for (; 
+		aptr < a.end() && bptr < b.end(); 
+		aptr++, bptr++)
 	{
-		for (std::vector<float>::const_iterator bptr = b.begin(); bptr < b.end(); bptr++)
-		{
-			ret.push_back(*aptr + *bptr);
-		}
+		ret.push_back(*aptr + *bptr);
 	}
 
 	return ret;
@@ -93,37 +91,36 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 //		xs1 = output[2] + grid_x
 //		ys1 = output[3] + grid_y
 
-
 	std::vector<std::vector<float>> output;
 	for (int c = 0; c < CLASS_COUNT; c++)
 	{
 		std::vector<float> chanVec;
 		for (int vec = 0; vec < ROW_COUNT * COL_COUNT; vec++)
 		{
-			chanVec.push_back(modelOutputs[GetOffset(c, vec)]);
+			chanVec.push_back(modelOutputs[GetOffset(vec, c)]);
 		}
 
 		output.push_back(chanVec);
 	}
 
-	auto xs0 = Sigmoid(output[0]) + _gridX[0];
-	auto ys0 = Sigmoid(output[1]) + _gridY[0];
-	auto xs1 = output[2] + _gridX[0];
-	auto ys1 = output[3] + _gridY[0];
-	auto xs2 = output[4] + _gridX[0];
-	auto ys2 = output[5] + _gridY[0];
-	auto xs3 = output[6] + _gridX[0];
-	auto ys3 = output[7] + _gridY[0];
-	auto xs4 = output[8] + _gridX[0];
-	auto ys4 = output[9] + _gridY[0];
-	auto xs5 = output[10] + _gridX[0];
-	auto ys5 = output[11] + _gridY[0];
-	auto xs6 = output[12] + _gridX[0];
-	auto ys6 = output[13] + _gridY[0];
-	auto xs7 = output[14] + _gridX[0];
-	auto ys7 = output[15] + _gridY[0];
-	auto xs8 = output[16] + _gridX[0];
-	auto ys8 = output[17] + _gridY[0];
+	auto xs0 = Sigmoid(output[0]) + _gridX;
+	auto ys0 = Sigmoid(output[1]) + _gridY;
+	auto xs1 = output[2] + _gridX;
+	auto ys1 = output[3] + _gridY;
+	auto xs2 = output[4] + _gridX;
+	auto ys2 = output[5] + _gridY;
+	auto xs3 = output[6] + _gridX;
+	auto ys3 = output[7] + _gridY;
+	auto xs4 = output[8] + _gridX;
+	auto ys4 = output[9] + _gridY;
+	auto xs5 = output[10] + _gridX;
+	auto ys5 = output[11] + _gridY;
+	auto xs6 = output[12] + _gridX;
+	auto ys6 = output[13] + _gridY;
+	auto xs7 = output[14] + _gridX;
+	auto ys7 = output[15] + _gridY;
+	auto xs8 = output[16] + _gridX;
+	auto ys8 = output[17] + _gridY;
 	auto det_confs = Sigmoid(output[18]);
 
 	float max_conf = -1.0f;
@@ -151,18 +148,17 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 		pose.bounds.push_back({ xs6[max_ind] / (float)COL_COUNT, ys6[max_ind] / (float)ROW_COUNT });
 		pose.bounds.push_back({ xs7[max_ind] / (float)COL_COUNT, ys7[max_ind] / (float)ROW_COUNT });
 		pose.bounds.push_back({ xs8[max_ind] / (float)COL_COUNT, ys8[max_ind] / (float)ROW_COUNT });
+		return pose;
 	}
 
-    return Pose();
+	return Pose();
+
 }
 
-int PoseResultsParser::GetOffset(int x, int y)
+int PoseResultsParser::GetOffset(int o, int channel)
 {
-    //static int channelStride = ROW_COUNT * COL_COUNT;
-    //return (channel * channelStride) + (y * COL_COUNT) + x;
-	
-	// Pose is transposed
-	return (x * ROW_COUNT) + y;
+	static int channelStride = ROW_COUNT * COL_COUNT;
+	return (channel * channelStride) + o;
 }
 
 std::vector<float> PoseResultsParser::Sigmoid(const std::vector<float>& values)

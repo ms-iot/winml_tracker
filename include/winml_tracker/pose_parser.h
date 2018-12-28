@@ -24,14 +24,14 @@ namespace pose
     class PoseResultsParser
     {
     public:
-		static std::vector<std::vector<float>> _gridX;
-		static std::vector<std::vector<float>> _gridY;
+		static std::vector<float> _gridX;
+		static std::vector<float> _gridY;
 
 		static void initPoseTables();
 
         static Pose GetRecognizedObjects(std::vector<float> modelOutputs, float threshold = 0.3f);
     private:
-        static int GetOffset(int x, int y);
+        static int GetOffset(int o, int channel);
         static std::vector<float> Sigmoid(const std::vector<float>& values);
     };
 }
