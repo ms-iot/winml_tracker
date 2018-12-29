@@ -191,7 +191,10 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
 
     // Set the image to 32-bit floating point values for tensorization.
     cv::Mat image_32_bit;
-    rgb_image.convertTo(image_32_bit, CV_32F);
+	//rgb_image.convertTo(image_32_bit, CV_32F);
+	rgb_image.convertTo(image_32_bit, CV_32F);
+
+	cv::normalize(image_32_bit, image_32_bit, 0.0f, 1.0f, cv::NORM_MINMAX);
 
     // Extract color channels from interleaved data
     cv::Mat channels[3];
@@ -238,6 +241,14 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
     memcpy(&image_data[2 * 416 * 416], (float *)channels[2].data, 416 * 416 * sizeof(float));
     TensorFloat image_tensor = TensorFloat::CreateFromArray({ 1, 3, 416, 416 }, image_data);
     binding.Bind(inName.c_str(), image_tensor);
+	/*
+	std::cout << "Model input\n";
+
+	for (auto v = image_data.begin(); v != image_data.end(); ++v)
+	{
+		std::cout << *v << ' ';
+	}
+	*/
 
     // Call WinML    
     auto results = session.Evaluate(binding, L"RunId");

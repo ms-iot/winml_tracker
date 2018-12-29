@@ -91,12 +91,10 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 //		xs1 = output[2] + grid_x
 //		ys1 = output[3] + grid_y
 
-	/*
 	for (auto v = modelOutputs.begin(); v != modelOutputs.end(); ++v)
 	{
 		std::cout << *v << ' ';
 	}
-	*/
 
 	std::vector<std::vector<float>> output;
 	for (int c = 0; c < CLASS_COUNT; c++)
