@@ -112,7 +112,11 @@ void processYoloOutput(std::vector<float> grids, cv::Mat& image_resized)
 
 void processPoseOutput(std::vector<float> grids, cv::Mat& image_resized)
 {
+    std::vector<int> cuboid_edges_v1({0,1,2,3,4,5,6,7,1,0,2,3});
+    std::vector<int> cuboid_edges_v2({1,2,3,0,5,6,7,4,5,4,6,7});
+
     auto pose = pose::PoseResultsParser::GetRecognizedObjects(grids, 0.3f);
+
     /*
     int count = 0;
     std::vector<visualization_msgs::Marker> markers;
@@ -143,6 +147,24 @@ void processPoseOutput(std::vector<float> grids, cv::Mat& image_resized)
     markers.push_back(marker);
     etect_pub.publish(markers);
     */
+
+    cv::Scalar color(255, 255, 0);
+
+    for (int i = 0; i < cuboid_edges_v2.size(); i++)
+    {
+        cv::Point2i pt1 = pose.bounds[cuboid_edges_v1[i]];
+        cv::Point2i pt2 = pose.bounds[cuboid_edges_v2[i]];
+        cv::line(image_resized, pt1, pt2, color, 5);
+    }
+
+    sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_resized).toImageMsg();
+    image_pub.publish(msg);
+	/*while (ros::ok())
+	{
+		debug_image_pub.publish(msg);
+		ros::spinOnce();
+	}
+	*/
 }
 
 

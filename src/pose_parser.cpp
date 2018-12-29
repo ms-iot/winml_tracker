@@ -1,4 +1,6 @@
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
+#include <ros/ros.h>
+#include <cv_bridge/cv_bridge.h>
 #include "winml_tracker/pose_parser.h"
 #define EIGEN_DEFAULT_IO_FORMAT Eigen::IOFormat(10)
 #include <Eigen/Eigen>
@@ -9,6 +11,9 @@
 #include <codecvt>
 #include <fstream>
 #include <sstream>
+
+const int IMAGE_WIDTH = 416;
+const int IMAGE_HEIGHT = 416;
 
 const int ROW_COUNT = 13;
 const int COL_COUNT = 13;
@@ -90,11 +95,12 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 //		ys0 = torch.sigmoid(output[1]) + grid_y
 //		xs1 = output[2] + grid_x
 //		ys1 = output[3] + grid_y
-
+	/*
 	for (auto v = modelOutputs.begin(); v != modelOutputs.end(); ++v)
 	{
 		std::cout << *v << ' ';
 	}
+	*/
 
 	std::vector<std::vector<float>> output;
 	for (int c = 0; c < CLASS_COUNT; c++)
@@ -144,20 +150,20 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, fl
 	if (max_ind >= 0)
 	{
 		Pose pose;
-		pose.bounds.push_back({ xs0[max_ind] / (float)COL_COUNT, ys0[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs1[max_ind] / (float)COL_COUNT, ys1[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs2[max_ind] / (float)COL_COUNT, ys2[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs3[max_ind] / (float)COL_COUNT, ys3[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs4[max_ind] / (float)COL_COUNT, ys4[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs5[max_ind] / (float)COL_COUNT, ys5[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs6[max_ind] / (float)COL_COUNT, ys6[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs7[max_ind] / (float)COL_COUNT, ys7[max_ind] / (float)ROW_COUNT });
-		pose.bounds.push_back({ xs8[max_ind] / (float)COL_COUNT, ys8[max_ind] / (float)ROW_COUNT });
+		pose.bounds.push_back({ (xs0[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys0[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs1[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys1[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs2[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys2[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs3[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys3[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs4[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys4[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs5[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys5[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs6[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys6[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs7[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys7[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+		pose.bounds.push_back({ (xs8[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys8[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+
 		return pose;
 	}
 
 	return Pose();
-
 }
 
 int PoseResultsParser::GetOffset(int o, int channel)

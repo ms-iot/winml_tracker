@@ -9,16 +9,13 @@ namespace pose
     const int COL_COUNT = 13;
     const int CHANNEL_COUNT = 20;
 
-    struct Point
-    {
-		float x;
-		float y;
-    };
-
-    struct Pose
+    class Pose
     {
     public:
-        std::vector<Point> bounds;
+		Pose() {}
+		Pose(Pose&& p) : bounds(std::move(p.bounds)) {}
+
+        std::vector<cv::Point2f> bounds;
     };
 
     class PoseResultsParser
