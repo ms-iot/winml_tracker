@@ -36,7 +36,7 @@ include_directories(
 
 add_executable(${PROJECT_NAME}_node src/winml_tracker.cpp src/main.cpp src/yolo_box.cpp src/pose_parser.cpp)
 add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES} opencv_calib3d)
 
 install(TARGETS ${PROJECT_NAME}_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
@@ -44,12 +44,12 @@ install(TARGETS ${PROJECT_NAME}_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(DIRECTORY launch
+install(DIRECTORY launch testdata
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
 if(CATKIN_ENABLE_TESTING)
   find_package(rostest REQUIRED)
   add_rostest_gtest(${PROJECT_NAME}_testnode test/testtracker.launch test/testtracker.cpp src/winml_tracker.cpp src/yolo_box.cpp  src/pose_parser.cpp)
-  target_link_libraries(${PROJECT_NAME}_testnode ${catkin_LIBRARIES})
+  target_link_libraries(${PROJECT_NAME}_testnode ${catkin_LIBRARIES} opencv_calib3d)
 endif()

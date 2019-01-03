@@ -82,7 +82,7 @@ std::vector<float> operator+(const std::vector<float>& a, const std::vector<floa
 	return ret;
 }
 
-Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, float threshold)
+Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs)
 {
 	initPoseTables();
 

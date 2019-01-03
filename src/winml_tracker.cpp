@@ -4,6 +4,7 @@
 
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
+#include <opencv2/calib3d/calib3d.hpp>
 #include <image_transport/image_transport.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -49,6 +50,8 @@ image_transport::Publisher debug_image_pub;
 
 WinMLTracker_Type TrackerType = WinMLTracker_Yolo;
 WinMLTracker_ImageProcessing ImageProcessingType = WinMLTracker_Scale;
+std::vector<cv::Point3d> modelBounds;
+
 
 void processYoloOutput(std::vector<float> grids, cv::Mat& image_resized)
 {
@@ -115,38 +118,79 @@ void processPoseOutput(std::vector<float> grids, cv::Mat& image_resized)
     std::vector<int> cuboid_edges_v1({0,1,2,3,4,5,6,7,1,0,2,3});
     std::vector<int> cuboid_edges_v2({1,2,3,0,5,6,7,4,5,4,6,7});
 
-    auto pose = pose::PoseResultsParser::GetRecognizedObjects(grids, 0.3f);
+    auto pose = pose::PoseResultsParser::GetRecognizedObjects(grids);
 
-    /*
-    int count = 0;
-    std::vector<visualization_msgs::Marker> markers;
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = "base_link";
-    marker.header.stamp = ros::Time();
-    marker.ns = "winml";
-    marker.id = count++;
-    marker.type = visualization_msgs::Marker::SPHERE;
-    marker.action = visualization_msgs::Marker::ADD;
+	if (modelBounds.size() > 0)
+	{
+		// Borrowing from https://www.learnopencv.com/head-pose-estimation-using-opencv-and-dlib/
+		double focal_length = 416; // Approximate focal length.
+		cv::Point2d center = cv::Point2d(416 / 2, 416 / 2);
+		cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << focal_length, 0, center.x, 0, focal_length, center.y, 0, 0, 1);
+		cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); // Assuming no lens distortion
 
-    marker.pose.position.x = 0;
-    marker.pose.position.y = 0;
-    marker.pose.position.z = 0;
-    marker.pose.orientation.x = 0.0;
-    marker.pose.orientation.y = 0.0;
-    marker.pose.orientation.z = 0.0;
-    marker.pose.orientation.w = 1.0;
+		cv::Mat rotation_vector;
+		cv::Mat translation_vector;
 
-    marker.scale.x = 1;
-    marker.scale.y = 0.1;
-    marker.scale.z = 0.1;
-    marker.color.a = 1.0;
-    marker.color.r = 0.0;
-    marker.color.g = 0.0;
-    marker.color.b = 1.0;
+		// Solve for pose
+		cv::solvePnP(modelBounds, pose.bounds, camera_matrix, dist_coeffs, rotation_vector, translation_vector);
 
-    markers.push_back(marker);
-    etect_pub.publish(markers);
-    */
+		std::vector<cv::Point3f> AxisPoints3D;
+		AxisPoints3D.push_back(cv::Point3f(0, 0, 0));
+		AxisPoints3D.push_back(cv::Point3f(5, 0, 0));
+		AxisPoints3D.push_back(cv::Point3f(0, 5, 0));
+		AxisPoints3D.push_back(cv::Point3f(0, 0, 5));
+
+		std::vector<cv::Point2f> AxisPoints2D;
+		cv::projectPoints(AxisPoints3D, rotation_vector, translation_vector, camera_matrix, dist_coeffs, AxisPoints2D);
+
+		cv::line(image_resized, AxisPoints2D[0], AxisPoints2D[1], cv::Scalar(255, 0, 0), 2);
+		cv::line(image_resized, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
+		cv::line(image_resized, AxisPoints2D[0], AxisPoints2D[3], cv::Scalar(0, 0, 255), 2);
+
+		cv::Mat_<double> rosQuat = cv::Mat_<double>::eye(4, 1);
+		cv::Mat_<double> rvec(3, 3);
+		cv::Rodrigues(rotation_vector, rvec);
+
+		double w = rvec(0, 0) + rvec(1, 1) + rvec(2, 2) + 1;
+		if (w > 0.0)
+		{
+			w = sqrt(w);
+			rosQuat(0, 0) = (rvec(2, 1) - rvec(1, 2)) / (w * 2.0);
+			rosQuat(1, 0) = (rvec(0, 2) - rvec(2, 0)) / (w * 2.0);
+			rosQuat(2, 0) = (rvec(1, 0) - rvec(0, 1)) / (w * 2.0);
+			rosQuat(3, 0) = w / 2.0;
+
+			int count = 0;
+			std::vector<visualization_msgs::Marker> markers;
+			visualization_msgs::Marker marker;
+			marker.header.frame_id = "base_link";
+			marker.header.stamp = ros::Time();
+			marker.ns = "winml";
+			marker.id = count++;
+			marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+			marker.action = visualization_msgs::Marker::ADD;
+			marker.mesh_resource = "package://winml_tracker/testdata/shoe.dae";
+
+			marker.pose.position.x = translation_vector.at<float>(0);
+			marker.pose.position.y = translation_vector.at<float>(1);
+			marker.pose.position.z = translation_vector.at<float>(2);
+			marker.pose.orientation.x = rosQuat(0, 0);
+			marker.pose.orientation.y = rosQuat(1, 0);
+			marker.pose.orientation.z = rosQuat(2, 0);
+			marker.pose.orientation.w = rosQuat(3, 0);
+
+			marker.scale.x = 1.0;
+			marker.scale.y = 1.0;
+			marker.scale.z = 1.0;
+			marker.color.a = 1.0;
+			marker.color.r = 0.0;
+			marker.color.g = 0.0;
+			marker.color.b = 1.0;
+
+			markers.push_back(marker);
+			detect_pub.publish(markers);
+		}
+	}
 
     cv::Scalar color(255, 255, 0);
 
@@ -159,16 +203,11 @@ void processPoseOutput(std::vector<float> grids, cv::Mat& image_resized)
 
     sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_resized).toImageMsg();
     image_pub.publish(msg);
-	/*while (ros::ok())
-	{
-		debug_image_pub.publish(msg);
-		ros::spinOnce();
-	}
-	*/
 }
 
 
-void ProcessImage(const sensor_msgs::ImageConstPtr& image) {
+void ProcessImage(const sensor_msgs::ImageConstPtr& image) 
+{
     //ROS_INFO_STREAM("Received image: " << image->header.seq);
 
     // Convert back to an OpenCV Image
@@ -315,16 +354,17 @@ int WinMLTracker_Init(ros::NodeHandle& nh)
 int WinMLTracker_Startup(ros::NodeHandle& nh)
 {
     // Parameters.
-    std::string yoloModelPath;
-    if (nh.getParam("yolo_model_path", yoloModelPath))
+    std::string onnxModelPath;
+    if (nh.getParam("onnx_model_path", onnxModelPath) ||
+		onnxModelPath.empty())
     {
-        ROS_ERROR("yolo_model_path parameter has not been set.");
+        ROS_ERROR("onnx_model_path parameter has not been set.");
         nh.shutdown();
         return 0;
     }
 
     std::string imageProcessingType;
-    if (nh.getParam("imageProcessing", imageProcessingType))
+    if (nh.getParam("image_processing", imageProcessingType))
     {
         if (imageProcessingType == "crop")
         {
@@ -340,8 +380,49 @@ int WinMLTracker_Startup(ros::NodeHandle& nh)
         }
     }
 
+	std::string trackerType;
+	if (nh.getParam("tracker_type", trackerType))
+	{
+		if (trackerType == "yolo")
+		{
+			TrackerType = WinMLTracker_Yolo;
+		}
+		else if (trackerType == "pose")
+		{
+			TrackerType = WinMLTracker_Pose;
+		}
+		else
+		{
+			// default;
+		}
+	}
+	if (TrackerType == WinMLTracker_Pose)
+	{
+		std::vector<float> points;
+		if (nh.getParam("model_bounds", points))
+		{
+			if (points.size() < 9 * 3)
+			{
+				ROS_ERROR("Model Bounds needs 9 3D floating points.");
+				nh.shutdown();
+				return 0;
+			}
+
+			for (int p = 0; p < points.size() / 3; p += 3)
+			{
+				modelBounds.push_back(cv::Point3d(points[0], points[1], points[2]));
+			}
+		}
+		else
+		{
+			ROS_ERROR("Model Bounds needs to be specified for Pose processing.");
+			nh.shutdown();
+			return 0;
+		}
+	}
+
     // Load the ML model
-    hstring modelPath = hstring(wstring_to_utf8().from_bytes(yoloModelPath));
+    hstring modelPath = hstring(wstring_to_utf8().from_bytes(onnxModelPath));
     model = LearningModel::LoadFromFilePath(modelPath);
 
     // Create a WinML session

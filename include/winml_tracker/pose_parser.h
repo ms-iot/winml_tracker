@@ -26,7 +26,7 @@ namespace pose
 
 		static void initPoseTables();
 
-        static Pose GetRecognizedObjects(std::vector<float> modelOutputs, float threshold = 0.3f);
+        static Pose GetRecognizedObjects(std::vector<float> modelOutputs);
     private:
         static int GetOffset(int o, int channel);
         static std::vector<float> Sigmoid(const std::vector<float>& values);

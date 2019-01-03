@@ -88,8 +88,38 @@ TEST(TrackerTester, poseTest)
     EXPECT_NE(msg, nullptr);
 	image_pub.publish(msg);
 	ros::spinOnce();
+	/*
+	modelBounds.push_back(cv::Point3d(14.0, 5.5, 0.0));
+	modelBounds.push_back(cv::Point3d(14.0, -5.5, 0.0));
+	modelBounds.push_back(cv::Point3d(- 14.0, -5.5, 0.0));
+	modelBounds.push_back(cv::Point3d(- 14.0, 5.5, 0.0));
+	modelBounds.push_back(cv::Point3d(14.0, 5.5, 10.0));
+	modelBounds.push_back(cv::Point3d(14.0, -5.5, 10.0));
+	modelBounds.push_back(cv::Point3d(- 14.0, -5.5, 10.0));
+	modelBounds.push_back(cv::Point3d(- 14.0, 5.5, 10.0));
+	*/
+	modelBounds.push_back(cv::Point3d(-4.57, -10.50, -13.33));
+	modelBounds.push_back(cv::Point3d(5.54, -10.50, -13.33));
+	modelBounds.push_back(cv::Point3d(5.54, 0.00, -13.33));
+	modelBounds.push_back(cv::Point3d(-4.57, 0.00, -13.33));
+	modelBounds.push_back(cv::Point3d(-4.57, -10.50, 13.73));
+	modelBounds.push_back(cv::Point3d(5.54, -10.50, 13.73));
+	modelBounds.push_back(cv::Point3d(5.54, 0.00, 13.73));
+	modelBounds.push_back(cv::Point3d(-4.57, 0.00, 13.73));
+	modelBounds.push_back(cv::Point3d(0.48, -5.25, 0.20));
+	
 
-    hstring modelPath = hstring(wstring_to_utf8().from_bytes("C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\shoe.onnx"));
+
+
+
+
+
+
+
+
+
+
+	hstring modelPath = hstring(wstring_to_utf8().from_bytes("C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\shoe.onnx"));
     model = LearningModel::LoadFromFilePath(modelPath);
 	EXPECT_NE(model, nullptr);
 
@@ -101,7 +131,8 @@ TEST(TrackerTester, poseTest)
 
     ProcessImage(msg);
 
-    ros::spinOnce();
+    //ros::spinOnce();
+	ros::spin();
 
     EXPECT_TRUE(mh.wasCalled());
 }

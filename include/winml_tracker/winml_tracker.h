@@ -23,3 +23,6 @@ typedef enum
 
 extern WinMLTracker_Type TrackerType;
 extern WinMLTracker_ImageProcessing ImageProcessingType;
+
+extern std::vector<cv::Point3d> modelBounds;
+
