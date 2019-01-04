@@ -1,8 +1,8 @@
 #pragma once
 
-extern int WinMLTracker_Init(ros::NodeHandle& nh);
-extern int WinMLTracker_Startup(ros::NodeHandle& nh);
-extern int WinMLTracker_Shutdown(ros::NodeHandle& nh);
+extern int WinMLTracker_Init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
+extern int WinMLTracker_Startup(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
+extern int WinMLTracker_Shutdown(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
 extern void ProcessImage(const sensor_msgs::ImageConstPtr& image);
 
 

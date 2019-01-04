@@ -49,7 +49,7 @@ image_transport::Publisher image_pub;
 image_transport::Publisher debug_image_pub;
 
 WinMLTracker_Type TrackerType = WinMLTracker_Yolo;
-WinMLTracker_ImageProcessing ImageProcessingType = WinMLTracker_Scale;
+WinMLTracker_ImageProcessing ImageProcessingType = WinMLTracker_Crop;
 std::vector<cv::Point3d> modelBounds;
 
 
@@ -339,7 +339,7 @@ void ProcessImage(const sensor_msgs::ImageConstPtr& image)
     return;
 }
 
-int WinMLTracker_Init(ros::NodeHandle& nh)
+int WinMLTracker_Init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 {
     detect_pub = nh.advertise<visualization_msgs::MarkerArray>("tracked_objects", 1);
 
@@ -348,14 +348,14 @@ int WinMLTracker_Init(ros::NodeHandle& nh)
     image_pub = it.advertise("tracked_objects/image", 1);
 	debug_image_pub = it.advertise("debug/image", 1);
 
-    return 0;
+    return 1;
 }
 
-int WinMLTracker_Startup(ros::NodeHandle& nh)
+int WinMLTracker_Startup(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 {
     // Parameters.
     std::string onnxModelPath;
-    if (nh.getParam("onnx_model_path", onnxModelPath) ||
+    if (!nhPrivate.getParam("onnx_model_path", onnxModelPath) ||
 		onnxModelPath.empty())
     {
         ROS_ERROR("onnx_model_path parameter has not been set.");
@@ -364,7 +364,7 @@ int WinMLTracker_Startup(ros::NodeHandle& nh)
     }
 
     std::string imageProcessingType;
-    if (nh.getParam("image_processing", imageProcessingType))
+    if (nhPrivate.getParam("image_processing", imageProcessingType))
     {
         if (imageProcessingType == "crop")
         {
@@ -381,7 +381,7 @@ int WinMLTracker_Startup(ros::NodeHandle& nh)
     }
 
 	std::string trackerType;
-	if (nh.getParam("tracker_type", trackerType))
+	if (nhPrivate.getParam("tracker_type", trackerType))
 	{
 		if (trackerType == "yolo")
 		{
@@ -399,7 +399,7 @@ int WinMLTracker_Startup(ros::NodeHandle& nh)
 	if (TrackerType == WinMLTracker_Pose)
 	{
 		std::vector<float> points;
-		if (nh.getParam("model_bounds", points))
+		if (nhPrivate.getParam("model_bounds", points))
 		{
 			if (points.size() < 9 * 3)
 			{
@@ -408,9 +408,9 @@ int WinMLTracker_Startup(ros::NodeHandle& nh)
 				return 0;
 			}
 
-			for (int p = 0; p < points.size() / 3; p += 3)
+			for (int p = 0; p < points.size(); p += 3)
 			{
-				modelBounds.push_back(cv::Point3d(points[0], points[1], points[2]));
+				modelBounds.push_back(cv::Point3d(points[p], points[p + 1], points[p + 2]));
 			}
 		}
 		else
@@ -428,12 +428,14 @@ int WinMLTracker_Startup(ros::NodeHandle& nh)
     // Create a WinML session
     session = LearningModelSession(model, LearningModelDevice(LearningModelDeviceKind::Cpu));
 
-    return 0;
+
+	return WinMLTracker_Init(nh, nhPrivate);
 }
 
-int WinMLTracker_Shutdown(ros::NodeHandle& nh)
+int WinMLTracker_Shutdown(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 {
     nh.shutdown();
+    nhPrivate.shutdown();
 
-    return 0;
+    return 1;
 }

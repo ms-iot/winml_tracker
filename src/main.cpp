@@ -26,12 +26,13 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "winml_tracker");
 
     ros::NodeHandle nh;
+    ros::NodeHandle nhPrivate("~");
 
-    int ret = WinMLTracker_Startup(nh);
+    int ret = WinMLTracker_Startup(nh, nhPrivate);
     if (ret != 0)
     {
         ros::spin();
 
-        WinMLTracker_Shutdown(nh);
+        WinMLTracker_Shutdown(nh, nhPrivate);
     }
 }

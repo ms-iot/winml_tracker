@@ -5,16 +5,16 @@
   <arg name="model_bounds_arg" default="[-4.57, -10.50, -13.33, 5.54, -10.50, -13.33, 5.54, 0.00, -13.33, -4.57, 0.00, -13.33, -4.57, -10.50, 13.73, 5.54, -10.50, 13.73, 5.54, 0.00, 13.73, -4.57, 0.00, 13.73, 0.48, -5.25, 0.20]"/>
   <arg name="tracker_type_arg" default="pose"/>
 
-  <node pkg="winml_tracker" type="winml_tracker_node" name="winml_tracker_node" output="screen">
+  <node pkg="winml_tracker" type="winml_tracker_node" name="winml_tracker" output="screen">
     <param name="onnx_model_path" value="$(arg onnx_model_path_arg)"/>
-    <param name="model_bounds" value="$(arg model_bounds_arg)"/>
+    <param name="model_bounds" type="yaml" value="$(arg model_bounds_arg)"/>
     <param name="tracker_type" value="$(arg tracker_type_arg)"/>
   </node>
   
   <!-- NOTE: The image properties need to be valid for the camera, or the node will auto select the closest values -->
   <node pkg="cv_camera" type="cv_camera_node" name="cv_camera" output="screen">
-    <param name="rate" value="5.0"/>
-    <param name="image_width" value="640"/>
-    <param name="image_height" value="480"/>
+    <param name="rate" type="double" value="5.0"/>
+    <param name="image_width" type="double" value="640"/>
+    <param name="image_height" type="double" value="480"/>
   </node>
 </launch>

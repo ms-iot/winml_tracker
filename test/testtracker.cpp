@@ -146,11 +146,11 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh;
 	g_nh = &nh;
 
-	EXPECT_EQ(WinMLTracker_Init(nh), 0);
+	EXPECT_EQ(WinMLTracker_Init(nh, nh), 0);
 
     int ret = RUN_ALL_TESTS();
 
-    WinMLTracker_Shutdown(nh);
+    WinMLTracker_Shutdown(nh, nh);
 
     return ret;
 }
