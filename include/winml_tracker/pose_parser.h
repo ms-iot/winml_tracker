@@ -18,17 +18,22 @@ namespace pose
         std::vector<cv::Point2f> bounds;
     };
 
-    class PoseResultsParser
+    class PoseProcessor : public WinMLProcessor
     {
-    public:
 		static std::vector<float> _gridX;
 		static std::vector<float> _gridY;
 
-		static void initPoseTables();
+    public:
+        std::vector<cv::Point3d> modelBounds;
 
-        static Pose GetRecognizedObjects(std::vector<float> modelOutputs);
+        virtual bool init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
     private:
-        static int GetOffset(int o, int channel);
-        static std::vector<float> Sigmoid(const std::vector<float>& values);
+		void initPoseTables();
+
+        Pose GetRecognizedObjects(std::vector<float> modelOutputs);
+        int GetOffset(int o, int channel);
+        std::vector<float> Sigmoid(const std::vector<float>& values);
+    protected:
+        virtual void ProcessOutput(std::vector<float> output, cv::Mat& image);
     };
 }

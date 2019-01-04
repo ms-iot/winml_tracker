@@ -1,9 +1,22 @@
 #define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <opencv2/calib3d/calib3d.hpp>
+
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.AI.MachineLearning.h>
+#include <winrt/Windows.Media.h>
+#include <winrt/Windows.Storage.h>
+#include <winrt/Windows.Graphics.h>
+#include <winrt/Windows.Graphics.Imaging.h>
+#include "winml_tracker/winml_tracker.h"
 #include "winml_tracker/pose_parser.h"
+
 #define EIGEN_DEFAULT_IO_FORMAT Eigen::IOFormat(10)
 #include <Eigen/Eigen>
+
 #include <algorithm>
 #include <numeric>
 #include <functional>
@@ -19,15 +32,57 @@ const int ROW_COUNT = 13;
 const int COL_COUNT = 13;
 const int CHANNEL_COUNT = 20;
 const int CLASS_COUNT = 20;
+
+using namespace winrt;
+using namespace Windows::Foundation;
+using namespace Windows::Foundation::Collections;
+using namespace Windows::AI::MachineLearning;
+using namespace Windows::Media;
+using namespace Windows::Graphics::Imaging;
+using namespace Windows::Storage;
+using namespace std;
 using namespace std;
 using namespace pose;
 
 bool g_init = false;
-std::vector<float> PoseResultsParser::_gridX;
-std::vector<float> PoseResultsParser::_gridY;
+std::vector<float> PoseProcessor::_gridX;
+std::vector<float> PoseProcessor::_gridY;
+
+bool PoseProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
+{
+	initPoseTables();
+
+	WinMLProcessor::init(nh, nhPrivate);
+	_channelCount = CHANNEL_COUNT;
+	_rowCount = ROW_COUNT;
+	_colCount = COL_COUNT;
+	_outName = L"218";
+	_inName = L"0";
+	std::vector<float> points;
+	if (nhPrivate.getParam("model_bounds", points))
+	{
+		if (points.size() < 9 * 3)
+		{
+			ROS_ERROR("Model Bounds needs 9 3D floating points.");
+			return false;
+		}
+
+		for (int p = 0; p < points.size(); p += 3)
+		{
+			modelBounds.push_back(cv::Point3d(points[p], points[p + 1], points[p + 2]));
+		}
+
+		return true;
+	}
+	else
+	{
+		ROS_ERROR("Model Bounds needs to be specified for Pose processing.");
+		return false;
+	}
+}
 
 
-void PoseResultsParser::initPoseTables()
+void PoseProcessor::initPoseTables()
 {
 	if (g_init)
 	{
@@ -82,7 +137,101 @@ std::vector<float> operator+(const std::vector<float>& a, const std::vector<floa
 	return ret;
 }
 
-Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs)
+void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
+{
+    std::vector<int> cuboid_edges_v1({0,1,2,3,4,5,6,7,1,0,2,3});
+    std::vector<int> cuboid_edges_v2({1,2,3,0,5,6,7,4,5,4,6,7});
+
+    auto pose = GetRecognizedObjects(output);
+
+	if (modelBounds.size() > 0)
+	{
+		// Borrowing from https://www.learnopencv.com/head-pose-estimation-using-opencv-and-dlib/
+		double focal_length = 416; // Approximate focal length.
+		cv::Point2d center = cv::Point2d(416 / 2, 416 / 2);
+		cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << focal_length, 0, center.x, 0, focal_length, center.y, 0, 0, 1);
+		cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); // Assuming no lens distortion
+
+		cv::Mat rotation_vector;
+		cv::Mat translation_vector;
+
+		// Solve for pose
+		cv::solvePnP(modelBounds, pose.bounds, camera_matrix, dist_coeffs, rotation_vector, translation_vector);
+
+		std::vector<cv::Point3f> AxisPoints3D;
+		AxisPoints3D.push_back(cv::Point3f(0, 0, 0));
+		AxisPoints3D.push_back(cv::Point3f(5, 0, 0));
+		AxisPoints3D.push_back(cv::Point3f(0, 5, 0));
+		AxisPoints3D.push_back(cv::Point3f(0, 0, 5));
+
+		std::vector<cv::Point2f> AxisPoints2D;
+		cv::projectPoints(AxisPoints3D, rotation_vector, translation_vector, camera_matrix, dist_coeffs, AxisPoints2D);
+
+		cv::line(image, AxisPoints2D[0], AxisPoints2D[1], cv::Scalar(255, 0, 0), 2);
+		cv::line(image, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
+		cv::line(image, AxisPoints2D[0], AxisPoints2D[3], cv::Scalar(0, 0, 255), 2);
+
+		cv::Mat_<double> rosQuat = cv::Mat_<double>::eye(4, 1);
+		cv::Mat_<double> rvec(3, 3);
+		cv::Rodrigues(rotation_vector, rvec);
+
+		double w = rvec(0, 0) + rvec(1, 1) + rvec(2, 2) + 1;
+		if (w > 0.0)
+		{
+			w = sqrt(w);
+			rosQuat(0, 0) = (rvec(2, 1) - rvec(1, 2)) / (w * 2.0);
+			rosQuat(1, 0) = (rvec(0, 2) - rvec(2, 0)) / (w * 2.0);
+			rosQuat(2, 0) = (rvec(1, 0) - rvec(0, 1)) / (w * 2.0);
+			rosQuat(3, 0) = w / 2.0;
+
+			int count = 0;
+			std::vector<visualization_msgs::Marker> markers;
+			visualization_msgs::Marker marker;
+			marker.header.frame_id = "base_link";
+			marker.header.stamp = ros::Time();
+			marker.ns = "winml";
+			marker.id = count++;
+			marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+			marker.action = visualization_msgs::Marker::ADD;
+			marker.mesh_resource = "package://winml_tracker/testdata/shoe.dae";
+
+			marker.pose.position.x = translation_vector.at<float>(0);
+			marker.pose.position.y = translation_vector.at<float>(1);
+			marker.pose.position.z = translation_vector.at<float>(2);
+			marker.pose.orientation.x = rosQuat(0, 0);
+			marker.pose.orientation.y = rosQuat(1, 0);
+			marker.pose.orientation.z = rosQuat(2, 0);
+			marker.pose.orientation.w = rosQuat(3, 0);
+
+			marker.scale.x = 1.0;
+			marker.scale.y = 1.0;
+			marker.scale.z = 1.0;
+			marker.color.a = 1.0;
+			marker.color.r = 0.0;
+			marker.color.g = 0.0;
+			marker.color.b = 1.0;
+
+			markers.push_back(marker);
+			_detect_pub.publish(markers);
+		}
+	}
+
+    cv::Scalar color(255, 255, 0);
+
+    for (int i = 0; i < cuboid_edges_v2.size(); i++)
+    {
+        cv::Point2i pt1 = pose.bounds[cuboid_edges_v1[i]];
+        cv::Point2i pt2 = pose.bounds[cuboid_edges_v2[i]];
+        cv::line(image, pt1, pt2, color, 5);
+    }
+
+    sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
+    _image_pub.publish(msg);	
+}
+
+
+
+Pose PoseProcessor::GetRecognizedObjects(std::vector<float> modelOutputs)
 {
 	initPoseTables();
 
@@ -166,13 +315,13 @@ Pose PoseResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs)
 	return Pose();
 }
 
-int PoseResultsParser::GetOffset(int o, int channel)
+int PoseProcessor::GetOffset(int o, int channel)
 {
 	static int channelStride = ROW_COUNT * COL_COUNT;
 	return (channel * channelStride) + o;
 }
 
-std::vector<float> PoseResultsParser::Sigmoid(const std::vector<float>& values)
+std::vector<float> PoseProcessor::Sigmoid(const std::vector<float>& values)
 {
 	std::vector<float> ret;
 

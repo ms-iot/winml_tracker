@@ -1,28 +1,59 @@
 #pragma once
 
-extern int WinMLTracker_Init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
-extern int WinMLTracker_Startup(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
-extern int WinMLTracker_Shutdown(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
-extern void ProcessImage(const sensor_msgs::ImageConstPtr& image);
-
-
-extern winrt::Windows::AI::MachineLearning::LearningModel model;
-extern winrt::Windows::AI::MachineLearning::LearningModelSession session;
-
-typedef enum 
+class WinMLProcessor
 {
-    WinMLTracker_Yolo,
-    WinMLTracker_Pose
-} WinMLTracker_Type;
+public:
+    WinMLProcessor();
 
-typedef enum 
+    void ProcessImage(const sensor_msgs::ImageConstPtr& image);
+
+    typedef enum 
+    {
+        Scale,
+        Crop
+    } ImageProcessing;
+
+    void setImageProcessing(ImageProcessing process)
+    {
+        _process = process;
+    }
+
+    virtual bool init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
+
+private:
+    ImageProcessing _process;
+
+protected:
+    virtual void ProcessOutput(std::vector<float> output, cv::Mat& image) = 0;
+
+    winrt::hstring _inName;
+    winrt::hstring _outName;
+    std::string _onnxModel;
+    int _channelCount;
+    int _rowCount;
+    int _colCount;
+    winrt::Windows::AI::MachineLearning::LearningModel _model = nullptr;
+    winrt::Windows::AI::MachineLearning::LearningModelSession _session = nullptr;
+
+    ros::Publisher _detect_pub;
+    image_transport::Publisher _image_pub;
+    image_transport::Publisher _debug_image_pub;
+    image_transport::Subscriber _cameraSub;
+
+
+};
+
+class WinMLTracker
 {
-    WinMLTracker_Scale,
-    WinMLTracker_Crop
-} WinMLTracker_ImageProcessing;
+    ros::NodeHandle _nh;
+    ros::NodeHandle _nhPrivate;
 
-extern WinMLTracker_Type TrackerType;
-extern WinMLTracker_ImageProcessing ImageProcessingType;
+    std::shared_ptr<WinMLProcessor> _processor;
 
-extern std::vector<cv::Point3d> modelBounds;
+public:
+    WinMLTracker() { };
+
+    bool init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
+    bool shutdown();
+};
 

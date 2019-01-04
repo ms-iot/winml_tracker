@@ -18,21 +18,30 @@ using namespace winrt;
 
 int main(int argc, char **argv)
 {
+    /*
     while (!IsDebuggerPresent())
     {
         Sleep(5);
     }
+    */
     winrt::init_apartment();
     ros::init(argc, argv, "winml_tracker");
 
     ros::NodeHandle nh;
     ros::NodeHandle nhPrivate("~");
 
-    int ret = WinMLTracker_Startup(nh, nhPrivate);
-    if (ret != 0)
+    WinMLTracker tracker;
+
+    if (tracker.init(nh, nhPrivate))
     {
         ros::spin();
 
-        WinMLTracker_Shutdown(nh, nhPrivate);
+        tracker.shutdown();
+
+        return 0;
+    }
+    else
+    {
+        return 1;
     }
 }

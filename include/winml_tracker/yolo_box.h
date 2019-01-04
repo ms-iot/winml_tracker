@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "winml_tracker.h"
+
 namespace yolo
 {
     const int ROW_COUNT = 13;
@@ -29,10 +31,13 @@ namespace yolo
         float x, y, width, height, confidence;
     };
 
-    class YoloResultsParser
+    class YoloProcessor : public WinMLProcessor
     {
     public:
-        static std::vector<YoloBox> GetRecognizedObjects(std::vector<float> modelOutputs, float threshold = 0.3f);
+        bool init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
+    protected:
+        std::vector<YoloBox> GetRecognizedObjects(std::vector<float> modelOutputs, float threshold = 0.3f);
+        virtual void ProcessOutput(std::vector<float> output, cv::Mat& image);
     private:
         static int GetOffset(int x, int y, int channel);
         static float IntersectionOverUnion(YoloBox a, YoloBox b);

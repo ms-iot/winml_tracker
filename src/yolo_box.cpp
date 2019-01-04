@@ -1,3 +1,18 @@
+
+#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 1 // The C++ Standard doesn't provide equivalent non-deprecated functionality yet.
+
+#include <ros/ros.h>
+#include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.AI.MachineLearning.h>
+#include <winrt/Windows.Media.h>
+#include <winrt/Windows.Storage.h>
+#include <winrt/Windows.Graphics.h>
+#include <winrt/Windows.Graphics.Imaging.h>
+
+#include "winml_tracker/winml_tracker.h"
 #include "winml_tracker/yolo_box.h"
 
 #include <algorithm>
@@ -6,7 +21,80 @@
 
 namespace yolo
 {
-    std::vector<YoloBox> YoloResultsParser::GetRecognizedObjects(std::vector<float> modelOutputs, float threshold)
+
+    bool YoloProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
+    {
+        WinMLProcessor::init(nh, nhPrivate);
+        _channelCount = CHANNEL_COUNT;
+        _rowCount = ROW_COUNT;
+        _colCount = COL_COUNT;
+        _outName = L"grid";
+        _inName = L"images";
+
+        return true;
+    }
+
+    void YoloProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
+    {
+        auto boxes = GetRecognizedObjects(output, 0.3f);
+
+        // If we found a person, send a message
+        int count = 0;
+        std::vector<visualization_msgs::Marker> markers;
+        for (std::vector<YoloBox>::iterator it = boxes.begin(); it != boxes.end(); ++it)
+        {
+            if (it->label == "person" && it->confidence >= 0.5f)
+            {
+                ROS_INFO("Person detected!");
+
+                visualization_msgs::Marker marker;
+                marker.header.frame_id = "base_link";
+                marker.header.stamp = ros::Time();
+                marker.ns = "winml";
+                marker.id = count++;
+                marker.type = visualization_msgs::Marker::SPHERE;
+                marker.action = visualization_msgs::Marker::ADD;
+
+                marker.pose.position.x = it->x + it->width / 2;
+                marker.pose.position.y = it->y + it->height / 2;
+                marker.pose.position.z = 0;
+                marker.pose.orientation.x = 0.0;
+                marker.pose.orientation.y = 0.0;
+                marker.pose.orientation.z = 0.0;
+                marker.pose.orientation.w = 1.0;
+
+                marker.scale.x = 1;
+                marker.scale.y = 0.1;
+                marker.scale.z = 0.1;
+                marker.color.a = 1.0;
+                marker.color.r = 0.0;
+                marker.color.g = 0.0;
+                marker.color.b = 1.0;
+
+                markers.push_back(marker);
+
+                // Draw a bounding box on the CV image
+                cv::Scalar color(255, 255, 0);
+                cv::Rect box;
+                box.x = std::max<int>((int)it->x, 0);
+                box.y = std::max<int>((int)it->y, 0);
+                box.height = std::min<int>(image.rows - box.y, (int)it->height);
+                box.width = std::min<int>(image.cols - box.x, (int)it->width);
+                cv::rectangle(image, box, color, 2, 8, 0);
+            }
+        }
+
+        if (count > 0)
+        {
+            _detect_pub.publish(markers);
+        }
+
+        // Always publish the resized image
+        sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
+        _image_pub.publish(msg);
+    }
+
+    std::vector<YoloBox> YoloProcessor::GetRecognizedObjects(std::vector<float> modelOutputs, float threshold)
     {
         static float anchors[] =
         {
@@ -71,7 +159,7 @@ namespace yolo
         return boxes;
     }
 
-    float YoloResultsParser::IntersectionOverUnion(YoloBox a, YoloBox b)
+    float YoloProcessor::IntersectionOverUnion(YoloBox a, YoloBox b)
     {
         int areaA = a.width * a.height;
 
@@ -91,7 +179,7 @@ namespace yolo
         return intersectionArea / (areaA + areaB - intersectionArea);
     }
 
-    int YoloResultsParser::GetOffset(int x, int y, int channel)
+    int YoloProcessor::GetOffset(int x, int y, int channel)
     {
         // YOLO outputs a tensor that has a shape of 125x13x13, which 
         // WinML flattens into a 1D array.  To access a specific channel 
@@ -101,13 +189,13 @@ namespace yolo
         return (channel * channelStride) + (y * COL_COUNT) + x;
     }
 
-    float YoloResultsParser::Sigmoid(float value)
+    float YoloProcessor::Sigmoid(float value)
     {
         float k = (float)std::exp(value);
         return k / (1.0f + k);
     }
 
-    void YoloResultsParser::Softmax(std::vector<float> &values)
+    void YoloProcessor::Softmax(std::vector<float> &values)
     {
         float max_val{ *std::max_element(values.begin(), values.end()) };
         std::transform(values.begin(), values.end(), values.begin(),
