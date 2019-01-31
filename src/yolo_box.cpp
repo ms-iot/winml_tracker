@@ -36,6 +36,11 @@ namespace yolo
 
     void YoloProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
     {
+        if (_fake)
+        {
+            return;
+        }
+        
         auto boxes = GetRecognizedObjects(output, 0.3f);
 
         // If we found a person, send a message
@@ -48,7 +53,7 @@ namespace yolo
                 ROS_INFO("Person detected!");
 
                 visualization_msgs::Marker marker;
-                marker.header.frame_id = "base_link";
+                marker.header.frame_id = _linkName;
                 marker.header.stamp = ros::Time();
                 marker.ns = "winml";
                 marker.id = count++;

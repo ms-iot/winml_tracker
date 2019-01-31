@@ -23,7 +23,7 @@ int main(int argc, char **argv)
     {
         Sleep(5);
     }
-    */
+*/
     winrt::init_apartment();
     ros::init(argc, argv, "winml_tracker");
 

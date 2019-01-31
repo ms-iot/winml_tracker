@@ -5,6 +5,8 @@ project(winml_tracker)
 add_compile_options(/Od)
 add_compile_options(/std:c++latest)
 add_compile_options(/await)
+add_definitions("/D_ENABLE_EXTENDED_ALIGNED_STORAGE")
+add_definitions("/D_USE_MATH_DEFINES")
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge

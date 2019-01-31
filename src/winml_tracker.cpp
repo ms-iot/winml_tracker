@@ -6,6 +6,8 @@
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <tf/LinearMath/Quaternion.h>
+#include <opencv2/opencv.hpp>
 
 
 // Include ROS files before Windows, as there are overlapping symbols
@@ -41,7 +43,9 @@ using convert_type = std::codecvt_utf8<wchar_t>;
 using wstring_to_utf8 = std::wstring_convert<convert_type, wchar_t>;
 
 WinMLProcessor::WinMLProcessor()
-: _process(ImageProcessing::Crop)
+: _process(ImageProcessing::Scale)
+, _confidence(0.70f)
+, _debug(false)
 {
 
 }
@@ -65,12 +69,46 @@ bool WinMLProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
         }
     }
 
+	nhPrivate.param<bool>("winml_fake", _fake, false);
+
+    nhPrivate.getParam("link_name", _linkName);
+
     if (!nhPrivate.getParam("onnx_model_path", _onnxModel) ||
 		_onnxModel.empty())
     {
         ROS_ERROR("onnx_model_path parameter has not been set.");
         return false;
     }
+
+    if (nhPrivate.getParam("calibration", _calibration))
+    {
+		try
+		{
+			cv::FileStorage fs(_calibration, cv::FileStorage::READ | cv::FileStorage::FORMAT_YAML);
+			fs["camera_matrix"] >> _camera_matrix;
+			fs["distortion_coefficients"] >> _dist_coeffs;
+		}
+		catch (std::exception &e)
+		{
+			ROS_ERROR("Failed to read the calibration file, continuing without calibration.\n%s", e.what());
+			// no calibration for you.
+			_calibration = "";
+		}
+    }
+
+	float conf;
+	if (nhPrivate.getParam("confidence", conf))
+	{
+		_confidence = conf;
+	}
+
+    bool d;
+	if (nhPrivate.getParam("debug", d))
+	{
+		_debug = d;
+	}
+
+    
 
     std::string imageTopic;
     if (!nhPrivate.getParam("image_topic", imageTopic) ||
@@ -110,11 +148,12 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
         return;
     }
 
-	cv::Size size(416, 416);
+	cv::Size mlSize(416, 416);
 	cv::Mat rgb_image;
 	cv::Mat image_resized;
-	// TODO: If the image is not the right dimensions, center crop or resize
 	cv::Size s = cv_ptr->image.size();
+    float aspectRatio = (float)s.width / (float)s.height;
+
 	if (_process == Crop && 
         s.width > 416 && s.height > 416)
 	{
@@ -124,7 +163,28 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
 	}
 	else
 	{
-		cv::resize(cv_ptr->image, image_resized, size, 0, 0, cv::INTER_CUBIC);
+        // We want to extract a correct apsect ratio from the center of the image
+        // but scale the whole frame so that there are no borders.
+
+        // First downsample
+        cv::Size downsampleSize;
+
+        if (aspectRatio > 1.0f)
+        {
+            downsampleSize.height = mlSize.height;
+            downsampleSize.width = mlSize.height * aspectRatio;
+        }
+        else
+        {
+            downsampleSize.width = mlSize.width;
+            downsampleSize.height = mlSize.width * aspectRatio;
+        }
+
+		cv::resize(cv_ptr->image, image_resized, downsampleSize, 0, 0, cv::INTER_CUBIC);
+
+        // now extract the center  
+		cv::Rect ROI((downsampleSize.width - 416) / 2, (downsampleSize.height - 416) / 2, 416, 416);
+		image_resized = image_resized(ROI);
 	}
 
     // Convert to RGB
@@ -154,21 +214,29 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
     TensorFloat image_tensor = TensorFloat::CreateFromArray({ 1, 3, 416, 416 }, image_data);
     binding.Bind(_inName, image_tensor);
 
-    // Call WinML    
-    auto results = _session.Evaluate(binding, L"RunId");
-    if (!results.Succeeded())
+    if (_fake)
     {
-        ROS_ERROR("WINML: Evaluation of object tracker failed!");
-        return;
+        std::vector<float> grids;
+        ProcessOutput(grids, image_resized);
     }
+    else
+    {
+        // Call WinML    
+        auto results = _session.Evaluate(binding, L"RunId");
+        if (!results.Succeeded())
+        {
+            ROS_ERROR("WINML: Evaluation of object tracker failed!");
+            return;
+        }
 
-    // Convert the results to a vector and parse the bounding boxes
-    auto grid_result = results.Outputs().Lookup(_outName).as<TensorFloat>().GetAsVectorView();
-    std::vector<float> grids(grid_result.Size());
-    winrt::array_view<float> grid_view(grids);
-    grid_result.GetMany(0, grid_view);
+        // Convert the results to a vector and parse the bounding boxes
+        auto grid_result = results.Outputs().Lookup(_outName).as<TensorFloat>().GetAsVectorView();
+        std::vector<float> grids(grid_result.Size());
+        winrt::array_view<float> grid_view(grids);
+        grid_result.GetMany(0, grid_view);
 
-    ProcessOutput(grids, image_resized);
+        ProcessOutput(grids, image_resized);
+    }
 
     return;
 }

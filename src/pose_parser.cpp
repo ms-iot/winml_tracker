@@ -4,6 +4,8 @@
 #include <image_transport/image_transport.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <opencv2/calib3d/calib3d.hpp>
+#include <tf/LinearMath/Quaternion.h>
+#include <tf/transform_datatypes.h>
 
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.AI.MachineLearning.h>
@@ -48,6 +50,13 @@ bool g_init = false;
 std::vector<float> PoseProcessor::_gridX;
 std::vector<float> PoseProcessor::_gridY;
 
+PoseProcessor::PoseProcessor()
+:_modelQuat(0.0, 0.0, 0.0, 0.0)
+{
+
+}
+
+
 bool PoseProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 {
 	initPoseTables();
@@ -58,6 +67,27 @@ bool PoseProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 	_colCount = COL_COUNT;
 	_outName = L"218";
 	_inName = L"0";
+
+	if (!nhPrivate.getParam("mesh_rotation", _modelRPY) ||
+		_modelRPY.size() != 3)
+	{
+		_modelRPY.push_back(0.0f);
+		_modelRPY.push_back(0.0f);
+		_modelRPY.push_back(0.0f);
+	}
+
+	if (!nhPrivate.getParam("mesh_scale", _modelScale) ||
+		_modelScale.size() != 3)
+	{
+		_modelScale.push_back(1.0f);
+		_modelScale.push_back(1.0f);
+		_modelScale.push_back(1.0f);
+	}
+
+	_modelQuat.setRPY(_modelRPY[0], _modelRPY[1], _modelRPY[2]);
+	_modelQuat.normalize();
+
+	nhPrivate.getParam("mesh_resource", meshResource);
 	std::vector<float> points;
 	if (nhPrivate.getParam("model_bounds", points))
 	{
@@ -137,93 +167,226 @@ std::vector<float> operator+(const std::vector<float>& a, const std::vector<floa
 	return ret;
 }
 
-void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
+void PoseProcessor::initMarker(visualization_msgs::Marker& marker, int32_t id, int32_t type, double x, double y, double z)
 {
-    std::vector<int> cuboid_edges_v1({0,1,2,3,4,5,6,7,1,0,2,3});
-    std::vector<int> cuboid_edges_v2({1,2,3,0,5,6,7,4,5,4,6,7});
+	marker.header.frame_id = _linkName;
+	marker.header.stamp = ros::Time();
+	marker.ns = "winml";
+	marker.id = id;
+	marker.type = type;
+	marker.action = visualization_msgs::Marker::ADD;
+	marker.lifetime = ros::Duration();
+	marker.mesh_use_embedded_materials = true;
+	marker.pose.position.x = x;
+	marker.pose.position.y = y;
+	marker.pose.position.z = z;
+	marker.pose.orientation.x = 0.0;
+	marker.pose.orientation.y = 0.0;
+	marker.pose.orientation.z = 0.0;
+	marker.pose.orientation.w = 1.0;
 
-    auto pose = GetRecognizedObjects(output);
-
-	if (modelBounds.size() > 0)
+	marker.points.clear();
+	
+	if (type == visualization_msgs::Marker::ARROW)
 	{
-		// Borrowing from https://www.learnopencv.com/head-pose-estimation-using-opencv-and-dlib/
-		double focal_length = 416; // Approximate focal length.
-		cv::Point2d center = cv::Point2d(416 / 2, 416 / 2);
-		cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) << focal_length, 0, center.x, 0, focal_length, center.y, 0, 0, 1);
-		cv::Mat dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); // Assuming no lens distortion
-
-		cv::Mat rotation_vector;
-		cv::Mat translation_vector;
-
-		// Solve for pose
-		cv::solvePnP(modelBounds, pose.bounds, camera_matrix, dist_coeffs, rotation_vector, translation_vector);
-
-		std::vector<cv::Point3f> AxisPoints3D;
-		AxisPoints3D.push_back(cv::Point3f(0, 0, 0));
-		AxisPoints3D.push_back(cv::Point3f(5, 0, 0));
-		AxisPoints3D.push_back(cv::Point3f(0, 5, 0));
-		AxisPoints3D.push_back(cv::Point3f(0, 0, 5));
-
-		std::vector<cv::Point2f> AxisPoints2D;
-		cv::projectPoints(AxisPoints3D, rotation_vector, translation_vector, camera_matrix, dist_coeffs, AxisPoints2D);
-
-		cv::line(image, AxisPoints2D[0], AxisPoints2D[1], cv::Scalar(255, 0, 0), 2);
-		cv::line(image, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
-		cv::line(image, AxisPoints2D[0], AxisPoints2D[3], cv::Scalar(0, 0, 255), 2);
-
-		cv::Mat_<double> rosQuat = cv::Mat_<double>::eye(4, 1);
-		cv::Mat_<double> rvec(3, 3);
-		cv::Rodrigues(rotation_vector, rvec);
-
-		double w = rvec(0, 0) + rvec(1, 1) + rvec(2, 2) + 1;
-		if (w > 0.0)
-		{
-			w = sqrt(w);
-			rosQuat(0, 0) = (rvec(2, 1) - rvec(1, 2)) / (w * 2.0);
-			rosQuat(1, 0) = (rvec(0, 2) - rvec(2, 0)) / (w * 2.0);
-			rosQuat(2, 0) = (rvec(1, 0) - rvec(0, 1)) / (w * 2.0);
-			rosQuat(3, 0) = w / 2.0;
-
-			int count = 0;
-			std::vector<visualization_msgs::Marker> markers;
-			visualization_msgs::Marker marker;
-			marker.header.frame_id = "base_link";
-			marker.header.stamp = ros::Time();
-			marker.ns = "winml";
-			marker.id = count++;
-			marker.type = visualization_msgs::Marker::MESH_RESOURCE;
-			marker.action = visualization_msgs::Marker::ADD;
-			marker.mesh_resource = "package://winml_tracker/testdata/shoe.dae";
-
-			marker.pose.position.x = translation_vector.at<float>(0);
-			marker.pose.position.y = translation_vector.at<float>(1);
-			marker.pose.position.z = translation_vector.at<float>(2);
-			marker.pose.orientation.x = rosQuat(0, 0);
-			marker.pose.orientation.y = rosQuat(1, 0);
-			marker.pose.orientation.z = rosQuat(2, 0);
-			marker.pose.orientation.w = rosQuat(3, 0);
-
-			marker.scale.x = 1.0;
-			marker.scale.y = 1.0;
-			marker.scale.z = 1.0;
-			marker.color.a = 1.0;
-			marker.color.r = 0.0;
-			marker.color.g = 0.0;
-			marker.color.b = 1.0;
-
-			markers.push_back(marker);
-			_detect_pub.publish(markers);
-		}
+		marker.scale.x = .01;
+		marker.scale.y = .012;
+		marker.scale.z = 0.0;
+	}
+	else
+	{
+		marker.scale.x = _modelScale[0];
+		marker.scale.y = _modelScale[1];
+		marker.scale.z = _modelScale[2];
 	}
 
-    cv::Scalar color(255, 255, 0);
+	marker.color.a = 1.0;
+	marker.color.r = 0.0;
+	marker.color.g = 0.0;
+	marker.color.b = 1.0;
+}
 
-    for (int i = 0; i < cuboid_edges_v2.size(); i++)
-    {
-        cv::Point2i pt1 = pose.bounds[cuboid_edges_v1[i]];
-        cv::Point2i pt2 = pose.bounds[cuboid_edges_v2[i]];
-        cv::line(image, pt1, pt2, color, 5);
-    }
+
+void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
+{
+
+	if (_fake)
+	{
+		std::vector<visualization_msgs::Marker> markers;
+		visualization_msgs::Marker marker;
+		marker.header.frame_id = _linkName;
+		marker.header.stamp = ros::Time();
+		marker.ns = "winml";
+		marker.id = 0;
+		marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+		marker.action = visualization_msgs::Marker::ADD;
+		marker.lifetime = ros::Duration();
+		marker.mesh_resource = meshResource;
+		marker.mesh_use_embedded_materials = true;
+
+		marker.pose.position.x = 0.30f;
+		marker.pose.position.y = 0.0f;
+		marker.pose.position.z = 0.0f;
+
+        tf::Quaternion modelQuat(0.0,0.0,0.0,1.0);
+
+		modelQuat = _modelQuat * modelQuat;
+		modelQuat.normalize();
+
+		tf::quaternionTFToMsg(modelQuat, marker.pose.orientation);
+
+		marker.scale.x = 1.0;
+		marker.scale.y = 1.0;
+		marker.scale.z = 1.0;
+		marker.color.a = 1.0;
+		marker.color.r = 0.0;
+		marker.color.g = 0.0;
+		marker.color.b = 1.0;
+
+		markers.push_back(marker);
+		_detect_pub.publish(markers);
+		return;
+	}
+
+    //std::vector<int> cuboid_edges_v1({0,1,2,3,4,5,6,7,1,0,2,3});
+    //std::vector<int> cuboid_edges_v2({1,2,3,0,5,6,7,4,5,4,6,7});
+    //std::vector<int> cuboid_edges_v1({0,1,2,3,4,5,6,7,1,0,2,3});
+    //std::vector<int> cuboid_edges_v2({2,3,4,1,6,7,8,5,6,5,7,8});
+	//std::vector<int> cuboid_edges_v1({1, 2, 3, 4, 5, 6, 7, 8, 2, 1, 3, 4});
+	//std::vector<int> cuboid_edges_v2({3, 4, 5, 2, 7, 8, 9, 6, 7, 6, 8, 9});
+	std::vector<int> cuboid_edges_v1({1, 2, 3, 4, 5, 6, 7, 8, 2, 1, 3, 4});
+	std::vector<int> cuboid_edges_v2({2, 3, 4, 1, 6, 7, 8, 5, 6, 5, 7, 8});
+
+	Pose pose;
+	if (GetRecognizedObjects(output, pose))
+	{
+		if (_calibration.empty())
+		{
+			// Borrowing from https://www.learnopencv.com/head-pose-estimation-using-opencv-and-dlib/
+			double focal_length = 416; // Approximate focal length.
+			cv::Point2d center = cv::Point2d(focal_length / 2, focal_length / 2);
+			_camera_matrix = (cv::Mat_<double>(3, 3) << focal_length, 0, center.x, 0, focal_length, center.y, 0, 0, 1);
+			_dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); // Assuming no lens distortion
+		}
+
+		cv::Mat rvec(3, 1, cv::DataType<double>::type);
+		cv::Mat tvec(3, 1, cv::DataType<double>::type);
+
+		// Solve for pose
+		if (cv::solvePnP(modelBounds, pose.bounds, _camera_matrix, _dist_coeffs, rvec, tvec))
+		{
+			std::vector<cv::Point3f> AxisPoints3D;
+			AxisPoints3D.push_back(cv::Point3f(0, 0, 0));
+			AxisPoints3D.push_back(cv::Point3f(5, 0, 0));
+			AxisPoints3D.push_back(cv::Point3f(0, 5, 0));
+			AxisPoints3D.push_back(cv::Point3f(0, 0, 5));
+
+			std::vector<cv::Point2f> AxisPoints2D;
+			cv::projectPoints(AxisPoints3D, rvec, tvec, _camera_matrix, _dist_coeffs, AxisPoints2D);
+
+			cv::line(image, AxisPoints2D[0], AxisPoints2D[1], cv::Scalar(255, 0, 0), 2);
+			cv::line(image, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
+			cv::line(image, AxisPoints2D[0], AxisPoints2D[3], cv::Scalar(0, 0, 255), 2);
+
+			cv::Mat_<double> rvec(3, 3);
+			cv::Rodrigues(rvec, rvec);
+
+			double w = rvec(0, 0) + rvec(1, 1) + rvec(2, 2) + 1;
+			if (w > 0.0)
+			{
+				w = sqrt(w);
+
+				tf::Quaternion modelQuat(
+					(rvec(2, 1) - rvec(1, 2)) / (w * 2.0),
+					(rvec(0, 2) - rvec(2, 0)) / (w * 2.0),
+					(rvec(1, 0) - rvec(0, 1)) / (w * 2.0),
+					w / 2.0);
+
+				tf::Quaternion modelQuatCorrect = tf::createQuaternionFromRPY(_modelRPY[0], _modelRPY[1], _modelRPY[2]);
+
+				// Rotate the perceived model based on the passed in orientation		
+				//modelQuat = modelQuatCorrect * modelQuat;
+				modelQuat.normalize();
+
+				std::vector<visualization_msgs::Marker> markers;
+				visualization_msgs::Marker marker;
+				double x = tvec.at<double>(0) / 1000.0;
+				double y = tvec.at<double>(1) / 1000.0;
+				double z = tvec.at<double>(2) / 1000.0;
+
+				initMarker(marker, 0, visualization_msgs::Marker::MESH_RESOURCE, x, y, z);
+				marker.mesh_resource = meshResource;
+
+				tf::quaternionTFToMsg(modelQuat, marker.pose.orientation);
+				markers.push_back(marker);
+
+				if (_debug)
+				{
+					visualization_msgs::Marker marker1;
+					initMarker(marker1, 1, visualization_msgs::Marker::ARROW, x, y, z);
+
+					geometry_msgs::Point pt;
+					marker1.points.push_back(pt);
+					pt.x = .1;
+					marker1.points.push_back(pt);
+
+					marker1.color.r = 1.0; marker1.color.g = 0.0; marker1.color.b = 0.0;
+					tf::quaternionTFToMsg(modelQuat, marker1.pose.orientation);
+					markers.push_back(marker1);
+
+					visualization_msgs::Marker marker2;
+					initMarker(marker2, 2, visualization_msgs::Marker::ARROW, x, y, z);
+
+					pt.x = 0.0;
+					marker2.points.push_back(pt);
+					pt.y = .1;
+					marker2.points.push_back(pt);
+
+					marker2.color.r = 0.0; marker2.color.g = 1.0; marker2.color.b = 0.0;
+					tf::quaternionTFToMsg(modelQuat, marker2.pose.orientation);
+					markers.push_back(marker2);
+
+					visualization_msgs::Marker marker3;
+					initMarker(marker3, 3, visualization_msgs::Marker::ARROW, x, y, z);
+
+					pt.x = 0.0; pt.y = 0.0;
+					marker3.points.push_back(pt);
+					pt.z = .1;
+					marker3.points.push_back(pt);
+
+					marker3.color.r = 0.0; marker3.color.g = 0.0; marker3.color.b = 1.0;
+					tf::quaternionTFToMsg(modelQuat, marker3.pose.orientation);
+					markers.push_back(marker3);
+				}
+
+				_detect_pub.publish(markers);
+			}
+		}
+
+		if (_debug)
+		{
+			std::vector<cv::Scalar> color({
+				cv::Scalar(0, 0, 128),
+				cv::Scalar(128, 0, 128),
+				cv::Scalar(0, 128, 128),
+				cv::Scalar(128, 0, 0),
+				cv::Scalar(128, 128, 0),
+				cv::Scalar(128, 128, 128),
+				cv::Scalar(0, 128, 0),
+				cv::Scalar(128, 0, 0),
+				cv::Scalar(255, 0, 255),
+				cv::Scalar(255, 255, 255) }
+			);
+
+			for (int i = 0; i < cuboid_edges_v2.size(); i++)
+			{
+
+				cv::Point2i pt1 = pose.bounds[cuboid_edges_v1[i]];
+				cv::Point2i pt2 = pose.bounds[cuboid_edges_v2[i]];
+				cv::line(image, pt1, pt2, color[i], 1);
+			}
+		}
+	}
 
     sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
     _image_pub.publish(msg);	
@@ -231,7 +394,7 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 
 
 
-Pose PoseProcessor::GetRecognizedObjects(std::vector<float> modelOutputs)
+bool PoseProcessor::GetRecognizedObjects(std::vector<float> modelOutputs, Pose& pose)
 {
 	initPoseTables();
 
@@ -296,9 +459,10 @@ Pose PoseProcessor::GetRecognizedObjects(std::vector<float> modelOutputs)
 		}
 	}
 
-	if (max_ind >= 0)
+	pose.confidence = max_conf;
+
+	if (max_conf > _confidence && max_ind >= 0)
 	{
-		Pose pose;
 		pose.bounds.push_back({ (xs0[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys0[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
 		pose.bounds.push_back({ (xs1[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys1[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
 		pose.bounds.push_back({ (xs2[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys2[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
@@ -309,10 +473,10 @@ Pose PoseProcessor::GetRecognizedObjects(std::vector<float> modelOutputs)
 		pose.bounds.push_back({ (xs7[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys7[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
 		pose.bounds.push_back({ (xs8[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys8[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
 
-		return pose;
+		return true;
 	}
 
-	return Pose();
+	return false;
 }
 
 int PoseProcessor::GetOffset(int o, int channel)

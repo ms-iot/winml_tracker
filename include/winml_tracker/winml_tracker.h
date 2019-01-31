@@ -26,9 +26,21 @@ private:
 protected:
     virtual void ProcessOutput(std::vector<float> output, cv::Mat& image) = 0;
 
+    bool _fake;
     winrt::hstring _inName;
     winrt::hstring _outName;
+    std::string _linkName;
     std::string _onnxModel;
+    std::string _calibration;
+
+    cv::Mat _camera_matrix;
+    cv::Mat _dist_coeffs;
+
+    
+    float _confidence;
+
+    bool _debug;
+
     int _channelCount;
     int _rowCount;
     int _colCount;
