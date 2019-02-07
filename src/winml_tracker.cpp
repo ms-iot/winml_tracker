@@ -129,7 +129,7 @@ bool WinMLProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
     _model = LearningModel::LoadFromFilePath(modelPath);
 
     // Create a WinML session
-    _session = LearningModelSession(_model, LearningModelDevice(LearningModelDeviceKind::Default));
+    _session = LearningModelSession(_model, LearningModelDevice(LearningModelDeviceKind::Cpu));
 
     return true;
 }

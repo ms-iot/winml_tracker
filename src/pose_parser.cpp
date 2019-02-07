@@ -305,7 +305,7 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 				tf::Quaternion modelQuatCorrect = tf::createQuaternionFromRPY(_modelRPY[0], _modelRPY[1], _modelRPY[2]);
 
 				// Rotate the perceived model based on the passed in orientation		
-				//modelQuat = modelQuatCorrect * modelQuat;
+				modelQuat = modelQuatCorrect * modelQuat;
 				modelQuat.normalize();
 
 				std::vector<visualization_msgs::Marker> markers;
