@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   Eigen3 
   visualization_msgs
+  winml_msgs
 )
 include_directories(${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 add_definitions(${EIGEN3_DEFINITIONS})
@@ -27,7 +28,7 @@ find_package(OpenCV REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES winml_tracker
-  CATKIN_DEPENDS cv_bridge geometry_msgs image_transport interactive_markers roscpp roslib std_msgs visualization_msgs
+  CATKIN_DEPENDS cv_bridge geometry_msgs image_transport interactive_markers roscpp roslib std_msgs visualization_msgs winml_msgs
   DEPENDS OpenCV
 )
 

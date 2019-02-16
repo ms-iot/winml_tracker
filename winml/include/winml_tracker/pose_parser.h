@@ -27,6 +27,8 @@ namespace pose
         std::vector<double> _modelScale;
 		std::vector<double> _modelRPY;
 
+        ros::Publisher _detect_pose_pub;
+
     
 
     public:

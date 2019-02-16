@@ -15,6 +15,7 @@
 #include <winrt/Windows.Graphics.Imaging.h>
 #include "winml_tracker/winml_tracker.h"
 #include "winml_tracker/pose_parser.h"
+#include "winml_tracker/DetectedObjectPose.h"
 
 #define EIGEN_DEFAULT_IO_FORMAT Eigen::IOFormat(10)
 #include <Eigen/Eigen>
@@ -101,6 +102,8 @@ bool PoseProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 		{
 			modelBounds.push_back(cv::Point3d(points[p], points[p + 1], points[p + 2]));
 		}
+
+		_detect_pose_pub = nh.advertise<winml_tracker::DetectedObjectPose>("detected_object", 1);
 
 		return true;
 	}
@@ -189,9 +192,15 @@ void PoseProcessor::initMarker(visualization_msgs::Marker& marker, int32_t id, i
 	
 	if (type == visualization_msgs::Marker::ARROW)
 	{
-		marker.scale.x = .01;
-		marker.scale.y = .012;
+		marker.scale.x = 0.01;
+		marker.scale.y = 0.012;
 		marker.scale.z = 0.0;
+	}
+	else if (type == visualization_msgs::Marker::SPHERE)
+	{
+		marker.scale.x = 0.01;
+		marker.scale.y = 0.01;
+		marker.scale.z = 0.01;
 	}
 	else
 	{
@@ -276,10 +285,10 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 		if (cv::solvePnP(modelBounds, pose.bounds, _camera_matrix, _dist_coeffs, rvec, tvec))
 		{
 			std::vector<cv::Point3f> AxisPoints3D;
-			AxisPoints3D.push_back(cv::Point3f(0, 0, 0));
-			AxisPoints3D.push_back(cv::Point3f(5, 0, 0));
-			AxisPoints3D.push_back(cv::Point3f(0, 5, 0));
-			AxisPoints3D.push_back(cv::Point3f(0, 0, 5));
+			AxisPoints3D.push_back(cv::Point3f( 0,  0,  0));
+			AxisPoints3D.push_back(cv::Point3f(20,  0,  0));
+			AxisPoints3D.push_back(cv::Point3f( 0, 20,  0));
+			AxisPoints3D.push_back(cv::Point3f( 0,  0, 20));
 
 			std::vector<cv::Point2f> AxisPoints2D;
 			cv::projectPoints(AxisPoints3D, rvec, tvec, _camera_matrix, _dist_coeffs, AxisPoints2D);
@@ -288,79 +297,90 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 			cv::line(image, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
 			cv::line(image, AxisPoints2D[0], AxisPoints2D[3], cv::Scalar(0, 0, 255), 2);
 
-			cv::Mat_<double> rvec(3, 3);
-			cv::Rodrigues(rvec, rvec);
+			cv::Mat_<double> rvecRod(3, 3);
+			cv::Rodrigues(rvec, rvecRod);
 
-			double w = rvec(0, 0) + rvec(1, 1) + rvec(2, 2) + 1;
-			if (w > 0.0)
+			tf::Matrix3x3 tfRod(
+				rvecRod(0, 0), rvecRod(0, 1), rvecRod(0, 2),
+				rvecRod(1, 0), rvecRod(1, 1), rvecRod(1, 2),
+				rvecRod(2, 0), rvecRod(2, 1), rvecRod(2, 2)
+				);
+			tf::Quaternion poseQuat;
+			tfRod.getRotation(poseQuat);
+
+			std::vector<visualization_msgs::Marker> markers;
+			visualization_msgs::Marker marker;
+			double x = tvec.at<double>(0) / 1000.0;
+			double y = tvec.at<double>(1) / 1000.0;
+			double z = tvec.at<double>(2) / 1000.0;
+
+			initMarker(marker, 0, visualization_msgs::Marker::SPHERE, x, y, z);
+			marker.mesh_resource = meshResource;
+
+			tf::quaternionTFToMsg(poseQuat, marker.pose.orientation);
+			markers.push_back(marker);
+
+			winml_tracker::DetectedObjectPose doPose;
+
+			doPose.header.frame_id = _linkName;
+			doPose.header.stamp = ros::Time();
+			tf::quaternionTFToMsg(poseQuat, doPose.pose.orientation);
+			doPose.pose.position.x = x;
+			doPose.pose.position.y = y;
+			doPose.pose.position.z = z;
+			doPose.confidence = pose.confidence;
+
+			// because
+
+			for (int i; i < doPose.flatBounds.size(); i++)
 			{
-				w = sqrt(w);
+				doPose.flatBounds[i].x = pose.bounds[i].x;
+				doPose.flatBounds[i].y = pose.bounds[i].y;
+				doPose.flatBounds[i].z = 0;
+			}			
 
-				tf::Quaternion modelQuat(
-					(rvec(2, 1) - rvec(1, 2)) / (w * 2.0),
-					(rvec(0, 2) - rvec(2, 0)) / (w * 2.0),
-					(rvec(1, 0) - rvec(0, 1)) / (w * 2.0),
-					w / 2.0);
+			_detect_pose_pub.publish(doPose);
 
-				tf::Quaternion modelQuatCorrect = tf::createQuaternionFromRPY(_modelRPY[0], _modelRPY[1], _modelRPY[2]);
+			if (_debug)
+			{
+				visualization_msgs::Marker marker1;
+				initMarker(marker1, 1, visualization_msgs::Marker::ARROW, x, y, z);
 
-				// Rotate the perceived model based on the passed in orientation		
-				modelQuat = modelQuatCorrect * modelQuat;
-				modelQuat.normalize();
+				geometry_msgs::Point pt;
+				marker1.points.push_back(pt);
+				pt.x = .1;
+				marker1.points.push_back(pt);
 
-				std::vector<visualization_msgs::Marker> markers;
-				visualization_msgs::Marker marker;
-				double x = tvec.at<double>(0) / 1000.0;
-				double y = tvec.at<double>(1) / 1000.0;
-				double z = tvec.at<double>(2) / 1000.0;
+				marker1.color.r = 1.0; marker1.color.g = 0.0; marker1.color.b = 0.0;
+				tf::quaternionTFToMsg(poseQuat, marker1.pose.orientation);
+				markers.push_back(marker1);
 
-				initMarker(marker, 0, visualization_msgs::Marker::MESH_RESOURCE, x, y, z);
-				marker.mesh_resource = meshResource;
+				visualization_msgs::Marker marker2;
+				initMarker(marker2, 2, visualization_msgs::Marker::ARROW, x, y, z);
 
-				tf::quaternionTFToMsg(modelQuat, marker.pose.orientation);
-				markers.push_back(marker);
+				pt.x = 0.0;
+				marker2.points.push_back(pt);
+				pt.y = .1;
+				marker2.points.push_back(pt);
 
-				if (_debug)
-				{
-					visualization_msgs::Marker marker1;
-					initMarker(marker1, 1, visualization_msgs::Marker::ARROW, x, y, z);
+				marker2.color.r = 0.0; marker2.color.g = 1.0; marker2.color.b = 0.0;
+				tf::quaternionTFToMsg(poseQuat, marker2.pose.orientation);
+				markers.push_back(marker2);
 
-					geometry_msgs::Point pt;
-					marker1.points.push_back(pt);
-					pt.x = .1;
-					marker1.points.push_back(pt);
+				visualization_msgs::Marker marker3;
+				initMarker(marker3, 3, visualization_msgs::Marker::ARROW, x, y, z);
 
-					marker1.color.r = 1.0; marker1.color.g = 0.0; marker1.color.b = 0.0;
-					tf::quaternionTFToMsg(modelQuat, marker1.pose.orientation);
-					markers.push_back(marker1);
+				pt.x = 0.0; pt.y = 0.0;
+				marker3.points.push_back(pt);
+				pt.z = .1;
+				marker3.points.push_back(pt);
 
-					visualization_msgs::Marker marker2;
-					initMarker(marker2, 2, visualization_msgs::Marker::ARROW, x, y, z);
-
-					pt.x = 0.0;
-					marker2.points.push_back(pt);
-					pt.y = .1;
-					marker2.points.push_back(pt);
-
-					marker2.color.r = 0.0; marker2.color.g = 1.0; marker2.color.b = 0.0;
-					tf::quaternionTFToMsg(modelQuat, marker2.pose.orientation);
-					markers.push_back(marker2);
-
-					visualization_msgs::Marker marker3;
-					initMarker(marker3, 3, visualization_msgs::Marker::ARROW, x, y, z);
-
-					pt.x = 0.0; pt.y = 0.0;
-					marker3.points.push_back(pt);
-					pt.z = .1;
-					marker3.points.push_back(pt);
-
-					marker3.color.r = 0.0; marker3.color.g = 0.0; marker3.color.b = 1.0;
-					tf::quaternionTFToMsg(modelQuat, marker3.pose.orientation);
-					markers.push_back(marker3);
-				}
-
-				_detect_pub.publish(markers);
+				marker3.color.r = 0.0; marker3.color.g = 0.0; marker3.color.b = 1.0;
+				tf::quaternionTFToMsg(poseQuat, marker3.pose.orientation);
+				markers.push_back(marker3);
 			}
+
+			_detect_pub.publish(markers);
 		}
 
 		if (_debug)
