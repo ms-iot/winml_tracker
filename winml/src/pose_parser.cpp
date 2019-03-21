@@ -15,7 +15,7 @@
 #include <winrt/Windows.Graphics.Imaging.h>
 #include "winml_tracker/winml_tracker.h"
 #include "winml_tracker/pose_parser.h"
-#include "winml_tracker/DetectedObjectPose.h"
+#include "winml_msgs/DetectedObjectPose.h"
 
 #define EIGEN_DEFAULT_IO_FORMAT Eigen::IOFormat(10)
 #include <Eigen/Eigen>
@@ -103,7 +103,7 @@ bool PoseProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 			modelBounds.push_back(cv::Point3d(points[p], points[p + 1], points[p + 2]));
 		}
 
-		_detect_pose_pub = nh.advertise<winml_tracker::DetectedObjectPose>("detected_object", 1);
+		_detect_pose_pub = nh.advertise<winml_msgs::DetectedObjectPose>("detected_object", 1);
 
 		return true;
 	}
@@ -320,7 +320,7 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 			tf::quaternionTFToMsg(poseQuat, marker.pose.orientation);
 			markers.push_back(marker);
 
-			winml_tracker::DetectedObjectPose doPose;
+			winml_msgs::DetectedObjectPose doPose;
 
 			doPose.header.frame_id = _linkName;
 			doPose.header.stamp = ros::Time();
