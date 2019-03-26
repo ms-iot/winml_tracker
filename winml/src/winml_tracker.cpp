@@ -69,12 +69,12 @@ bool WinMLProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
         }
     }
 
-	nhPrivate.param<bool>("winml_fake", _fake, false);
+    nhPrivate.param<bool>("winml_fake", _fake, false);
 
     nhPrivate.getParam("link_name", _linkName);
 
     if (!nhPrivate.getParam("onnx_model_path", _onnxModel) ||
-		_onnxModel.empty())
+        _onnxModel.empty())
     {
         ROS_ERROR("onnx_model_path parameter has not been set.");
         return false;
@@ -82,37 +82,37 @@ bool WinMLProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
 
     if (nhPrivate.getParam("calibration", _calibration))
     {
-		try
-		{
-			cv::FileStorage fs(_calibration, cv::FileStorage::READ | cv::FileStorage::FORMAT_YAML);
-			fs["camera_matrix"] >> _camera_matrix;
-			fs["distortion_coefficients"] >> _dist_coeffs;
-		}
-		catch (std::exception &e)
-		{
-			ROS_ERROR("Failed to read the calibration file, continuing without calibration.\n%s", e.what());
-			// no calibration for you.
-			_calibration = "";
-		}
+        try
+        {
+            cv::FileStorage fs(_calibration, cv::FileStorage::READ | cv::FileStorage::FORMAT_YAML);
+            fs["camera_matrix"] >> _camera_matrix;
+            fs["distortion_coefficients"] >> _dist_coeffs;
+        }
+        catch (std::exception &e)
+        {
+            ROS_ERROR("Failed to read the calibration file, continuing without calibration.\n%s", e.what());
+            // no calibration for you.
+            _calibration = "";
+        }
     }
 
-	float conf;
-	if (nhPrivate.getParam("confidence", conf))
-	{
-		_confidence = conf;
-	}
+    float conf;
+    if (nhPrivate.getParam("confidence", conf))
+    {
+        _confidence = conf;
+    }
 
     bool d;
-	if (nhPrivate.getParam("debug", d))
-	{
-		_debug = d;
-	}
+    if (nhPrivate.getParam("debug", d))
+    {
+        _debug = d;
+    }
 
     
 
     std::string imageTopic;
     if (!nhPrivate.getParam("image_topic", imageTopic) ||
-		imageTopic.empty())
+        imageTopic.empty())
     {
         imageTopic = "/cv_camera/image_raw";
     }
@@ -122,7 +122,7 @@ bool WinMLProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
     image_transport::ImageTransport it(nh);
     _cameraSub = it.subscribe(imageTopic.c_str(), 1, &WinMLProcessor::ProcessImage, this);
     _image_pub = it.advertise("tracked_objects/image", 1);
-	_debug_image_pub = it.advertise("debug/image", 1);
+    _debug_image_pub = it.advertise("debug/image", 1);
 
     // Load the ML model
     hstring modelPath = hstring(wstring_to_utf8().from_bytes(_onnxModel));
@@ -148,21 +148,21 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
         return;
     }
 
-	cv::Size mlSize(416, 416);
-	cv::Mat rgb_image;
-	cv::Mat image_resized;
-	cv::Size s = cv_ptr->image.size();
+    cv::Size mlSize(416, 416);
+    cv::Mat rgb_image;
+    cv::Mat image_resized;
+    cv::Size s = cv_ptr->image.size();
     float aspectRatio = (float)s.width / (float)s.height;
 
-	if (_process == Crop && 
+    if (_process == Crop && 
         s.width > 416 && s.height > 416)
-	{
-		// crop
-		cv::Rect ROI((s.width - 416) / 2, (s.height - 416) / 2, 416, 416);
-		image_resized = cv_ptr->image(ROI);
-	}
-	else
-	{
+    {
+        // crop
+        cv::Rect ROI((s.width - 416) / 2, (s.height - 416) / 2, 416, 416);
+        image_resized = cv_ptr->image(ROI);
+    }
+    else
+    {
         // We want to extract a correct apsect ratio from the center of the image
         // but scale the whole frame so that there are no borders.
 
@@ -180,22 +180,22 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
             downsampleSize.height = mlSize.width * aspectRatio;
         }
 
-		cv::resize(cv_ptr->image, image_resized, downsampleSize, 0, 0, cv::INTER_CUBIC);
+        cv::resize(cv_ptr->image, image_resized, downsampleSize, 0, 0, cv::INTER_CUBIC);
 
         // now extract the center  
-		cv::Rect ROI((downsampleSize.width - 416) / 2, (downsampleSize.height - 416) / 2, 416, 416);
-		image_resized = image_resized(ROI);
-	}
+        cv::Rect ROI((downsampleSize.width - 416) / 2, (downsampleSize.height - 416) / 2, 416, 416);
+        image_resized = image_resized(ROI);
+    }
 
     // Convert to RGB
     cv::cvtColor(image_resized, rgb_image, cv::COLOR_BGR2RGB);
 
     // Set the image to 32-bit floating point values for tensorization.
     cv::Mat image_32_bit;
-	//rgb_image.convertTo(image_32_bit, CV_32F);
-	rgb_image.convertTo(image_32_bit, CV_32F);
+    //rgb_image.convertTo(image_32_bit, CV_32F);
+    rgb_image.convertTo(image_32_bit, CV_32F);
 
-	cv::normalize(image_32_bit, image_32_bit, 0.0f, 1.0f, cv::NORM_MINMAX);
+    cv::normalize(image_32_bit, image_32_bit, 0.0f, 1.0f, cv::NORM_MINMAX);
 
     // Extract color channels from interleaved data
     cv::Mat channels[3];
@@ -204,7 +204,7 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
     // Setup the model binding
     LearningModelBinding binding(_session);
     vector<int64_t> grid_shape({ 1, _channelCount, _rowCount, _colCount });
-	binding.Bind(_outName, TensorFloat::Create(grid_shape));
+    binding.Bind(_outName, TensorFloat::Create(grid_shape));
 
     // Create a Tensor from the CV Mat and bind it to the session
     std::vector<float> image_data(1 * 3 * 416 * 416);
@@ -247,18 +247,18 @@ bool WinMLTracker::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
     _nhPrivate = nhPrivate;
 
     // Parameters.
-	std::string trackerType;
-	if (nhPrivate.getParam("tracker_type", trackerType))
-	{
-		if (trackerType == "yolo")
-		{
-			_processor = std::make_shared<yolo::YoloProcessor>();
-		}
-		else if (trackerType == "pose")
-		{
-			_processor = std::make_shared<pose::PoseProcessor>();
-		}
-	}
+    std::string trackerType;
+    if (nhPrivate.getParam("tracker_type", trackerType))
+    {
+        if (trackerType == "yolo")
+        {
+            _processor = std::make_shared<yolo::YoloProcessor>();
+        }
+        else if (trackerType == "pose")
+        {
+            _processor = std::make_shared<pose::PoseProcessor>();
+        }
+    }
 
     if (_processor == nullptr)
     {
