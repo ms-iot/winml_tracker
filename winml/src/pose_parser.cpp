@@ -216,7 +216,6 @@ void PoseProcessor::initMarker(visualization_msgs::Marker& marker, int32_t id, i
     marker.color.b = 1.0;
 }
 
-
 void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 {
 
@@ -293,6 +292,8 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
         cv::Mat rvec(3, 1, cv::DataType<double>::type);
         cv::Mat tvec(3, 1, cv::DataType<double>::type);
         std::vector<cv::Point2d> AxisPoints2D;
+        std::vector<cv::Point2d> AxisPoints2D1;
+        std::vector<cv::Point2d> AxisPoints2D2;
 
         // Solve for pose
         if (cv::solvePnP(modelBounds, resize_bounds, _camera_matrix, _dist_coeffs, rvec, tvec))
@@ -317,8 +318,49 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
                 rvecRod(1, 0), rvecRod(1, 1), rvecRod(1, 2),
                 rvecRod(2, 0), rvecRod(2, 1), rvecRod(2, 2)
                 );
-            tf::Quaternion poseQuat;
-            tfRod.getRotation(poseQuat);
+
+            tfScalar tfy, tfp, tfr;
+            tfRod.getEulerYPR(tfy, tfp, tfr);
+
+            ROS_INFO("tfy: %f, tfp: %f, tfr:%f", tfy, tfp, tfr);
+
+
+            //tf::Quaternion poseQuat;
+            tf::Quaternion poseQuat = tf::createQuaternionFromRPY(M_PI/(double)2.0, 0.0, tfy);
+            //tfRod.getRotation(poseQuat);
+            auto angle = poseQuat.getAngle();
+            auto axis = poseQuat.getAxis();
+            cv::Mat matRvec;
+            matRvec = (cv::Mat_<double>(3, 1) << axis.getX() * angle, axis.getY() * angle, axis.getZ() * angle);
+
+            cv::projectPoints(modelBounds, matRvec, tvec, _camera_matrix, _dist_coeffs, AxisPoints2D1);
+
+            double diffX = resize_bounds[0].x - AxisPoints2D1[0].x;
+            double diffY = resize_bounds[0].y - AxisPoints2D1[0].y;
+
+            ROS_INFO("%f, %f", diffX, diffY);
+
+            for (int i = 0; i < AxisPoints2D1.size(); i++)
+            {
+                AxisPoints2D1[i].x += diffX;
+                AxisPoints2D1[i].y += diffY;
+            }
+
+            if (cv::solvePnP(modelBounds, AxisPoints2D1, _camera_matrix, _dist_coeffs, rvec, tvec))
+            {
+                cv::Mat_<double> rvecRod(3, 3);
+                cv::Rodrigues(rvec, rvecRod);
+
+                tf::Matrix3x3 tfRod(
+                    rvecRod(0, 0), rvecRod(0, 1), rvecRod(0, 2),
+                    rvecRod(1, 0), rvecRod(1, 1), rvecRod(1, 2),
+                    rvecRod(2, 0), rvecRod(2, 1), rvecRod(2, 2)
+                    );
+                tfRod.getRotation(poseQuat);
+                ROS_INFO("solvepnp");
+            }
+
+            cv::projectPoints(modelBounds, rvec, tvec, _camera_matrix, _dist_coeffs, AxisPoints2D2);
 
             std::vector<visualization_msgs::Marker> markers;
             visualization_msgs::Marker marker;
@@ -455,6 +497,76 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
                     }
 #endif
                     cv::line(image, pt1, pt2, cv::Scalar(0, 255, 0), 2);
+                }
+
+                for (int i = 0; i < cuboid_edges_v2.size(); i++)
+                {
+                    cv::Point2d pt1 = AxisPoints2D1[cuboid_edges_v1[i]];
+                    cv::Point2d pt2 = AxisPoints2D1[cuboid_edges_v2[i]];
+#if 1
+                    auto minSize = _original_image_size.width < _original_image_size.height ? _original_image_size.width : _original_image_size.height;
+                    double resizeRatio = (double)minSize / (double)416;
+
+                    pt1.x /= resizeRatio;
+                    pt1.y /= resizeRatio;
+
+                    if (_original_image_size.width < _original_image_size.height)
+                    {
+                        pt1.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
+                    }
+                    else
+                    {
+                        pt1.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
+                    }
+
+                    pt2.x /= resizeRatio;
+                    pt2.y /= resizeRatio;
+
+                    if (_original_image_size.width < _original_image_size.height)
+                    {
+                        pt2.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
+                    }
+                    else
+                    {
+                        pt2.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
+                    }
+#endif
+                    cv::line(image, pt1, pt2, cv::Scalar(255, 0, 0), 2);
+                }
+
+                for (int i = 0; i < cuboid_edges_v2.size(); i++)
+                {
+                    cv::Point2d pt1 = AxisPoints2D2[cuboid_edges_v1[i]];
+                    cv::Point2d pt2 = AxisPoints2D2[cuboid_edges_v2[i]];
+#if 1
+                    auto minSize = _original_image_size.width < _original_image_size.height ? _original_image_size.width : _original_image_size.height;
+                    double resizeRatio = (double)minSize / (double)416;
+
+                    pt1.x /= resizeRatio;
+                    pt1.y /= resizeRatio;
+
+                    if (_original_image_size.width < _original_image_size.height)
+                    {
+                        pt1.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
+                    }
+                    else
+                    {
+                        pt1.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
+                    }
+
+                    pt2.x /= resizeRatio;
+                    pt2.y /= resizeRatio;
+
+                    if (_original_image_size.width < _original_image_size.height)
+                    {
+                        pt2.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
+                    }
+                    else
+                    {
+                        pt2.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
+                    }
+#endif
+                    cv::line(image, pt1, pt2, cv::Scalar(255, 255, 255), 2);
                 }
             }
         }
