@@ -52,7 +52,7 @@ protected:
     image_transport::Publisher _debug_image_pub;
     image_transport::Subscriber _cameraSub;
 
-
+    cv::Size _original_image_size;
 };
 
 class WinMLTracker

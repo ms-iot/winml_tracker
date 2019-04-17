@@ -6,6 +6,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <tf/LinearMath/Quaternion.h>
 #include <tf/transform_datatypes.h>
+#include <tf/transform_listener.h>
 
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.AI.MachineLearning.h>
@@ -269,20 +270,32 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
     Pose pose;
     if (GetRecognizedObjects(output, pose))
     {
-        if (_calibration.empty())
-        {
-            // Borrowing from https://www.learnopencv.com/head-pose-estimation-using-opencv-and-dlib/
-            double focal_length = 416; // Approximate focal length.
-            cv::Point2d center = cv::Point2d(focal_length / 2, focal_length / 2);
-            _camera_matrix = (cv::Mat_<double>(3, 3) << focal_length, 0, center.x, 0, focal_length, center.y, 0, 0, 1);
-            _dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); // Assuming no lens distortion
-        }
+#if 1
+        auto minSize = _original_image_size.width < _original_image_size.height ? _original_image_size.width : _original_image_size.height;
+        double resizeRatio = (double)minSize / (double)416;
 
+        auto resize_bounds = pose.bounds;
+        for (auto& point : resize_bounds)
+        {
+            point.x *= resizeRatio;
+            point.y *= resizeRatio;
+
+            if (_original_image_size.width < _original_image_size.height)
+            {
+                point.y += (double)(_original_image_size.height - _original_image_size.width)/(double)2;
+            }
+            else
+            {
+                point.x += (double)(_original_image_size.width - _original_image_size.height)/(double)2;
+            }
+        }
+#endif
         cv::Mat rvec(3, 1, cv::DataType<double>::type);
         cv::Mat tvec(3, 1, cv::DataType<double>::type);
+        std::vector<cv::Point2d> AxisPoints2D;
 
         // Solve for pose
-        if (cv::solvePnP(modelBounds, pose.bounds, _camera_matrix, _dist_coeffs, rvec, tvec))
+        if (cv::solvePnP(modelBounds, resize_bounds, _camera_matrix, _dist_coeffs, rvec, tvec))
         {
             std::vector<cv::Point3f> AxisPoints3D;
             AxisPoints3D.push_back(cv::Point3f( 0,  0,  0));
@@ -290,12 +303,11 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
             AxisPoints3D.push_back(cv::Point3f( 0, 20,  0));
             AxisPoints3D.push_back(cv::Point3f( 0,  0, 20));
 
-            std::vector<cv::Point2f> AxisPoints2D;
-            cv::projectPoints(AxisPoints3D, rvec, tvec, _camera_matrix, _dist_coeffs, AxisPoints2D);
+            cv::projectPoints(modelBounds, rvec, tvec, _camera_matrix, _dist_coeffs, AxisPoints2D);
 
-            cv::line(image, AxisPoints2D[0], AxisPoints2D[1], cv::Scalar(255, 0, 0), 2);
-            cv::line(image, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
-            cv::line(image, AxisPoints2D[0], AxisPoints2D[3], cv::Scalar(0, 0, 255), 2);
+            //cv::line(image, AxisPoints2D[0], AxisPoints2D[1], cv::Scalar(255, 0, 0), 2);
+            //cv::line(image, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
+            //cv::line(image, AxisPoints2D[0], AxisPoints2D[3], cv::Scalar(0, 0, 255), 2);
 
             cv::Mat_<double> rvecRod(3, 3);
             cv::Rodrigues(rvec, rvecRod);
@@ -310,12 +322,15 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 
             std::vector<visualization_msgs::Marker> markers;
             visualization_msgs::Marker marker;
-            double x = tvec.at<double>(0) / 1000.0;
-            double y = tvec.at<double>(1) / 1000.0;
-            double z = tvec.at<double>(2) / 1000.0;
+            double x = tvec.at<double>(0)/(double)1000;
+            double y = tvec.at<double>(1)/(double)1000;
+            double z = tvec.at<double>(2)/(double)1000;
 
-            initMarker(marker, 0, visualization_msgs::Marker::SPHERE, x, y, z);
-            marker.mesh_resource = meshResource;
+            initMarker(marker, 0, visualization_msgs::Marker::CUBE, x, y, z);
+            //marker.mesh_resource = "package://k4a_arm_support/meshes/Engine_Block.stl";
+            marker.scale.x = 0.1696;
+            marker.scale.y = 0.112;
+            marker.scale.z = 0.18164;
 
             tf::quaternionTFToMsg(poseQuat, marker.pose.orientation);
             markers.push_back(marker);
@@ -332,7 +347,7 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 
             // because
 
-            for (int i; i < doPose.flatBounds.size(); i++)
+            for (int i = 0; i < doPose.flatBounds.size(); i++)
             {
                 doPose.flatBounds[i].x = pose.bounds[i].x;
                 doPose.flatBounds[i].y = pose.bounds[i].y;
@@ -381,29 +396,66 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
             }
 
             _detect_pub.publish(markers);
-        }
 
-        if (_debug)
-        {
-            std::vector<cv::Scalar> color({
-                cv::Scalar(0, 0, 128),
-                cv::Scalar(128, 0, 128),
-                cv::Scalar(0, 128, 128),
-                cv::Scalar(128, 0, 0),
-                cv::Scalar(128, 128, 0),
-                cv::Scalar(128, 128, 128),
-                cv::Scalar(0, 128, 0),
-                cv::Scalar(128, 0, 0),
-                cv::Scalar(255, 0, 255),
-                cv::Scalar(255, 255, 255) }
-            );
-
-            for (int i = 0; i < cuboid_edges_v2.size(); i++)
+            if (_debug)
             {
+                #if 0
+                std::vector<cv::Scalar> color({
+                    cv::Scalar(0, 0, 128),
+                    cv::Scalar(128, 0, 128),
+                    cv::Scalar(0, 128, 128),
+                    cv::Scalar(128, 0, 0),
+                    cv::Scalar(128, 128, 0),
+                    cv::Scalar(128, 128, 128),
+                    cv::Scalar(0, 128, 0),
+                    cv::Scalar(128, 0, 0),
+                    cv::Scalar(255, 0, 255),
+                    cv::Scalar(255, 255, 255) }
+                );
+                #endif
 
-                cv::Point2i pt1 = pose.bounds[cuboid_edges_v1[i]];
-                cv::Point2i pt2 = pose.bounds[cuboid_edges_v2[i]];
-                cv::line(image, pt1, pt2, color[i], 1);
+                for (int i = 0; i < cuboid_edges_v2.size(); i++)
+                {
+
+                    cv::Point2i pt1 = pose.bounds[cuboid_edges_v1[i]];
+                    cv::Point2i pt2 = pose.bounds[cuboid_edges_v2[i]];
+                    cv::line(image, pt1, pt2, cv::Scalar(0, 0, 255), 2);
+                }
+
+                for (int i = 0; i < cuboid_edges_v2.size(); i++)
+                {
+                    cv::Point2d pt1 = AxisPoints2D[cuboid_edges_v1[i]];
+                    cv::Point2d pt2 = AxisPoints2D[cuboid_edges_v2[i]];
+#if 1
+                    auto minSize = _original_image_size.width < _original_image_size.height ? _original_image_size.width : _original_image_size.height;
+                    double resizeRatio = (double)minSize / (double)416;
+
+                    pt1.x /= resizeRatio;
+                    pt1.y /= resizeRatio;
+
+                    if (_original_image_size.width < _original_image_size.height)
+                    {
+                        pt1.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
+                    }
+                    else
+                    {
+                        pt1.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
+                    }
+
+                    pt2.x /= resizeRatio;
+                    pt2.y /= resizeRatio;
+
+                    if (_original_image_size.width < _original_image_size.height)
+                    {
+                        pt2.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
+                    }
+                    else
+                    {
+                        pt2.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
+                    }
+#endif
+                    cv::line(image, pt1, pt2, cv::Scalar(0, 255, 0), 2);
+                }
             }
         }
     }
@@ -483,15 +535,15 @@ bool PoseProcessor::GetRecognizedObjects(std::vector<float> modelOutputs, Pose& 
 
     if (max_conf > _confidence && max_ind >= 0)
     {
-        pose.bounds.push_back({ (xs0[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys0[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs1[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys1[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs2[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys2[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs3[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys3[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs4[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys4[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs5[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys5[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs6[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys6[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs7[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys7[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
-        pose.bounds.push_back({ (xs8[max_ind] / (float)COL_COUNT) * (float)IMAGE_WIDTH, (ys8[max_ind] / (float)ROW_COUNT) * (float)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs0[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys0[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs1[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys1[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs2[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys2[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs3[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys3[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs4[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys4[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs5[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys5[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs6[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys6[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs7[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys7[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
+        pose.bounds.push_back({ (xs8[max_ind] / (double)COL_COUNT) * (double)IMAGE_WIDTH, (ys8[max_ind] / (double)ROW_COUNT) * (double)IMAGE_HEIGHT });
 
         return true;
     }

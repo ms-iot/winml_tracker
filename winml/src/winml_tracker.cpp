@@ -151,8 +151,23 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
     cv::Size mlSize(416, 416);
     cv::Mat rgb_image;
     cv::Mat image_resized;
-    cv::Size s = cv_ptr->image.size();
-    float aspectRatio = (float)s.width / (float)s.height;
+    cv::Size s = _original_image_size = cv_ptr->image.size();
+    auto minSize = s.width < s.height ? s.width : s.height;
+    ROS_INFO_ONCE("image size (%d, %d)", s.width, s.height);
+
+    if (_calibration.empty())
+    {
+        // Borrowing from https://www.learnopencv.com/head-pose-estimation-using-opencv-and-dlib/
+        double image_width = s.width;
+        double image_height = s.height;
+        cv::Point2d center = cv::Point2d(image_width / 2, image_height / 2);
+        _camera_matrix = (cv::Mat_<double>(3, 3) << image_width, 0, center.x, 0, image_height, center.y, 0, 0, 1);
+        _dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); // Assuming no lens distortion
+    }
+    else
+    {
+        _dist_coeffs = cv::Mat::zeros(4, 1, cv::DataType<double>::type); // Assuming no lens distortion
+    }
 
     if (_process == Crop && 
         s.width > 416 && s.height > 416)
@@ -163,28 +178,19 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
     }
     else
     {
+        // now extract the center
+        cv::Rect ROI((s.width - minSize) / 2, (s.height - minSize) / 2, minSize, minSize);
+        image_resized = cv_ptr->image(ROI);
+
         // We want to extract a correct apsect ratio from the center of the image
         // but scale the whole frame so that there are no borders.
 
         // First downsample
         cv::Size downsampleSize;
+        downsampleSize.width = 416;
+        downsampleSize.height = 416;
 
-        if (aspectRatio > 1.0f)
-        {
-            downsampleSize.height = mlSize.height;
-            downsampleSize.width = mlSize.height * aspectRatio;
-        }
-        else
-        {
-            downsampleSize.width = mlSize.width;
-            downsampleSize.height = mlSize.width * aspectRatio;
-        }
-
-        cv::resize(cv_ptr->image, image_resized, downsampleSize, 0, 0, cv::INTER_CUBIC);
-
-        // now extract the center  
-        cv::Rect ROI((downsampleSize.width - 416) / 2, (downsampleSize.height - 416) / 2, 416, 416);
-        image_resized = image_resized(ROI);
+        cv::resize(image_resized, image_resized, downsampleSize, 0, 0, cv::INTER_AREA);
     }
 
     // Convert to RGB
@@ -221,7 +227,7 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
     }
     else
     {
-        // Call WinML    
+        // Call WinML
         auto results = _session.Evaluate(binding, L"RunId");
         if (!results.Succeeded())
         {

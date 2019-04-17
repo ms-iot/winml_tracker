@@ -15,7 +15,7 @@ namespace pose
         Pose() {}
         Pose(Pose&& p) : bounds(std::move(p.bounds)) {}
 
-        std::vector<cv::Point2f> bounds;
+        std::vector<cv::Point2d> bounds;
         float confidence;
     };
 
