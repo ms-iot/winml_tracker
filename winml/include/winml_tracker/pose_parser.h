@@ -35,6 +35,7 @@ namespace pose
         PoseProcessor();
 
         std::vector<cv::Point3d> modelBounds;
+        std::vector<cv::Point3d> modelBounds2;
         std::string meshResource;
 
         virtual bool init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);

@@ -5,6 +5,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <image_transport/image_transport.h>
 #include <visualization_msgs/MarkerArray.h>
+#include <tf/transform_listener.h>
 
 #include <vcruntime.h>
 #include <windows.h>
@@ -15,6 +16,8 @@
 
 using namespace std;
 using namespace winrt;
+
+tf::TransformListener* listener;
 
 int main(int argc, char **argv)
 {
@@ -32,6 +35,8 @@ int main(int argc, char **argv)
     ros::NodeHandle nhPrivate("~");
 
     WinMLTracker tracker;
+
+    listener = new tf::TransformListener();
 
     if (tracker.init(nh, nhPrivate))
     {

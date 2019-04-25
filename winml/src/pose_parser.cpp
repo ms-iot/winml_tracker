@@ -52,6 +52,8 @@ bool g_init = false;
 std::vector<float> PoseProcessor::_gridX;
 std::vector<float> PoseProcessor::_gridY;
 
+extern tf::TransformListener* listener;
+
 PoseProcessor::PoseProcessor()
 :_modelQuat(0.0, 0.0, 0.0, 0.0)
 {
@@ -105,6 +107,23 @@ bool PoseProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
         }
 
         _detect_pose_pub = nh.advertise<winml_msgs::DetectedObjectPose>("detected_object", 1);
+    }
+    else
+    {
+        ROS_ERROR("Model Bounds needs to be specified for Pose processing.");
+        return false;
+    }
+
+    std::vector<float> points2;
+    if (nhPrivate.getParam("model_bounds2", points2))
+    {
+        for (int p = 0; p < points2.size(); p += 3)
+        {
+            modelBounds2.push_back(cv::Point3d(points2[p] - (float)80.48, points2[p + 1] - (float)56.0, points2[p + 2] - (float)90.8));
+            ROS_INFO("x: %f, y: %f, z: %f", points2[p], points2[p + 1], points2[p + 2]);
+        }
+
+        ROS_INFO("model_bounds2");
 
         return true;
     }
@@ -271,23 +290,11 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
     if (GetRecognizedObjects(output, pose))
     {
 #if 1
-        auto minSize = _original_image_size.width < _original_image_size.height ? _original_image_size.width : _original_image_size.height;
-        double resizeRatio = (double)minSize / (double)416;
-
         auto resize_bounds = pose.bounds;
         for (auto& point : resize_bounds)
         {
-            point.x *= resizeRatio;
-            point.y *= resizeRatio;
-
-            if (_original_image_size.width < _original_image_size.height)
-            {
-                point.y += (double)(_original_image_size.height - _original_image_size.width)/(double)2;
-            }
-            else
-            {
-                point.x += (double)(_original_image_size.width - _original_image_size.height)/(double)2;
-            }
+            point.x += (_original_image_size.width - 416) / 2.0;
+            point.y += (_original_image_size.height - 416) / 2.0;
         }
 #endif
         cv::Mat rvec(3, 1, cv::DataType<double>::type);
@@ -304,6 +311,11 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
             AxisPoints3D.push_back(cv::Point3f( 0,  0, 20));
 
             cv::projectPoints(modelBounds, rvec, tvec, _camera_matrix, _dist_coeffs, AxisPoints2D);
+
+            std::vector<cv::Point2d> AxisPointsBox2;
+            cv::projectPoints(modelBounds2, rvec, tvec, _camera_matrix, _dist_coeffs, AxisPointsBox2);
+
+            //ROS_INFO("solvePnP y:%f, p:%f, r:%f", rvec.at<double>(0), rvec.at<double>(1), rvec.at<double>(2));
 
             //cv::line(image, AxisPoints2D[0], AxisPoints2D[1], cv::Scalar(255, 0, 0), 2);
             //cv::line(image, AxisPoints2D[0], AxisPoints2D[2], cv::Scalar(0, 255, 0), 2);
@@ -325,6 +337,63 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
             double x = tvec.at<double>(0)/(double)1000;
             double y = tvec.at<double>(1)/(double)1000;
             double z = tvec.at<double>(2)/(double)1000;
+
+            std::vector<cv::Point2d> correctedBoundingBox;
+            std::vector<cv::Point2d> correctedBoundingBox2;
+#if 1
+            tf::Transform modifiedEnginePose;
+            if (listener->waitForTransform ("world", _linkName, ros::Time(0), ros::Duration(.1)))
+            {
+                tf::StampedTransform engineToWorld;
+                listener->lookupTransform("world", _linkName, ros::Time(0), engineToWorld);
+
+                poseQuat.normalize();
+                tf::Transform enginePose(poseQuat, tf::Vector3(x, y, z));
+                auto engineGripPose = enginePose;
+
+                engineGripPose = (tf::Transform)engineToWorld * engineGripPose;
+
+                auto origin = engineGripPose.getOrigin();
+                origin.setZ(0.0);
+                engineGripPose.setOrigin(origin);
+
+                auto tempPoseQuat = engineGripPose.getRotation();
+                tfScalar yaw, pitch, roll;
+                tf::Matrix3x3 tmpMat(tempPoseQuat);
+                tmpMat.getEulerYPR(yaw, pitch, roll);
+
+                auto q = tf::createQuaternionFromRPY(-M_PI/(double)2.0, 0.0, yaw);
+                engineGripPose.setRotation(q);
+
+                if (listener->waitForTransform (_linkName, "world", ros::Time(0), ros::Duration(.1)))
+                {
+                    tf::StampedTransform engineToLink;
+                    listener->lookupTransform(_linkName, "world", ros::Time(0), engineToLink);
+
+                    modifiedEnginePose = (tf::Transform)engineToLink * engineGripPose;
+                }
+            }
+
+            x = modifiedEnginePose.getOrigin().getX();
+            y = modifiedEnginePose.getOrigin().getY();
+            z = modifiedEnginePose.getOrigin().getZ();
+            poseQuat = modifiedEnginePose.getRotation();
+            poseQuat.normalize();
+
+            auto angle = poseQuat.getAngle();
+            auto axis = poseQuat.getAxis();
+            cv::Mat matRvec;
+            matRvec = (cv::Mat_<double>(3, 1) << axis.getX() * angle, axis.getY() * angle, axis.getZ() * angle);
+
+            cv::Mat matTvec;
+            matTvec = (cv::Mat_<double>(3, 1) << x * (double)1000, y * (double)1000, z * (double)1000);
+            //ROS_INFO("x: %f, y: %f, z: %f", x * (double)1000, y * (double)1000, z * (double)1000);
+            //ROS_INFO("y: %f, p: %f, r: %f", axis.getX() * angle, axis.getY() * angle, axis.getZ() * angle);
+
+            cv::projectPoints(modelBounds, matRvec, matTvec, _camera_matrix, _dist_coeffs, correctedBoundingBox);
+            cv::projectPoints(modelBounds2, matRvec, matTvec, _camera_matrix, _dist_coeffs, correctedBoundingBox2);
+
+#endif
 
             initMarker(marker, 0, visualization_msgs::Marker::CUBE, x, y, z);
             //marker.mesh_resource = "package://k4a_arm_support/meshes/Engine_Block.stl";
@@ -426,35 +495,52 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
                 {
                     cv::Point2d pt1 = AxisPoints2D[cuboid_edges_v1[i]];
                     cv::Point2d pt2 = AxisPoints2D[cuboid_edges_v2[i]];
+
 #if 1
-                    auto minSize = _original_image_size.width < _original_image_size.height ? _original_image_size.width : _original_image_size.height;
-                    double resizeRatio = (double)minSize / (double)416;
+                    pt1.x -= (_original_image_size.width - 416) / 2.0;
+                    pt1.y -= (_original_image_size.height - 416) / 2.0;
 
-                    pt1.x /= resizeRatio;
-                    pt1.y /= resizeRatio;
-
-                    if (_original_image_size.width < _original_image_size.height)
-                    {
-                        pt1.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
-                    }
-                    else
-                    {
-                        pt1.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
-                    }
-
-                    pt2.x /= resizeRatio;
-                    pt2.y /= resizeRatio;
-
-                    if (_original_image_size.width < _original_image_size.height)
-                    {
-                        pt2.y -= (double)(_original_image_size.height - _original_image_size.width)/(double)2;
-                    }
-                    else
-                    {
-                        pt2.x -= (double)(_original_image_size.width - _original_image_size.height)/(double)2;
-                    }
+                    pt2.x -= (_original_image_size.width - 416) / 2.0;
+                    pt2.y -= (_original_image_size.height - 416) / 2.0;
 #endif
                     cv::line(image, pt1, pt2, cv::Scalar(0, 255, 0), 2);
+                }
+
+                for (int i = 0; i < AxisPointsBox2.size(); i++)
+                {
+
+                    cv::Point2d pt1 = AxisPointsBox2[i];
+#if 1
+                    pt1.x -= (_original_image_size.width - 416) / 2.0;
+                    pt1.y -= (_original_image_size.height - 416) / 2.0;
+#endif
+                    cv::circle(image, pt1, 5, cv::Scalar(0, 255, 0));
+                }
+
+                for (int i = 0; i < cuboid_edges_v2.size(); i++)
+                {
+                    cv::Point2d pt1 = correctedBoundingBox[cuboid_edges_v1[i]];
+                    cv::Point2d pt2 = correctedBoundingBox[cuboid_edges_v2[i]];
+
+#if 1
+                    pt1.x -= (_original_image_size.width - 416) / 2.0;
+                    pt1.y -= (_original_image_size.height - 416) / 2.0;
+
+                    pt2.x -= (_original_image_size.width - 416) / 2.0;
+                    pt2.y -= (_original_image_size.height - 416) / 2.0;
+#endif
+                    cv::line(image, pt1, pt2, cv::Scalar(255, 0, 0), 2);
+                }
+
+                for (int i = 0; i < AxisPointsBox2.size(); i++)
+                {
+
+                    cv::Point2d pt1 = correctedBoundingBox2[i];
+#if 1
+                    pt1.x -= (_original_image_size.width - 416) / 2.0;
+                    pt1.y -= (_original_image_size.height - 416) / 2.0;
+#endif
+                    cv::circle(image, pt1, 5, cv::Scalar(255, 0, 0));
                 }
             }
         }

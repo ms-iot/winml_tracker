@@ -179,18 +179,18 @@ void WinMLProcessor::ProcessImage(const sensor_msgs::ImageConstPtr& image)
     else
     {
         // now extract the center
-        cv::Rect ROI((s.width - minSize) / 2, (s.height - minSize) / 2, minSize, minSize);
+        cv::Rect ROI((s.width - 416) / 2, (s.height - 416) / 2, 416, 416);
         image_resized = cv_ptr->image(ROI);
 
         // We want to extract a correct apsect ratio from the center of the image
         // but scale the whole frame so that there are no borders.
 
         // First downsample
-        cv::Size downsampleSize;
-        downsampleSize.width = 416;
-        downsampleSize.height = 416;
+        //cv::Size downsampleSize;
+        //downsampleSize.width = 416;
+        //downsampleSize.height = 416;
 
-        cv::resize(image_resized, image_resized, downsampleSize, 0, 0, cv::INTER_AREA);
+        //cv::resize(image_resized, image_resized, downsampleSize, 0, 0, cv::INTER_AREA);
     }
 
     // Convert to RGB
