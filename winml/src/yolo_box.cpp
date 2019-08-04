@@ -21,6 +21,29 @@
 
 namespace yolo
 {
+    const int ROW_COUNT = 13;
+    const int COL_COUNT = 13;
+    const int CHANNEL_COUNT = 125;
+    const int BOXES_PER_CELL = 5;
+    const int BOX_INFO_FEATURE_COUNT = 5;
+    const int CLASS_COUNT = 20;
+    const float CELL_WIDTH = 32;
+    const float CELL_HEIGHT = 32;
+
+    static const std::string labels[CLASS_COUNT] =
+    {
+        "aeroplane", "bicycle", "bird", "boat", "bottle",
+        "bus", "car", "cat", "chair", "cow",
+        "diningtable", "dog", "horse", "motorbike", "person",
+        "pottedplant", "sheep", "sofa", "train", "tvmonitor"
+    };
+
+    const std::string kDefaultLabel = "person";
+
+    YoloProcessor::YoloProcessor()
+    {
+        _normalize = false;
+    }
 
     bool YoloProcessor::init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate)
     {
@@ -29,7 +52,9 @@ namespace yolo
         _rowCount = ROW_COUNT;
         _colCount = COL_COUNT;
         _outName = L"grid";
-        _inName = L"images";
+        _inName = L"image";
+
+        nhPrivate.param("label", _label, kDefaultLabel);
 
         return true;
     }
@@ -41,17 +66,15 @@ namespace yolo
             return;
         }
         
-        auto boxes = GetRecognizedObjects(output, 0.3f);
+        auto boxes = GetRecognizedObjects(output, _confidence);
 
         // If we found a person, send a message
         int count = 0;
         std::vector<visualization_msgs::Marker> markers;
         for (std::vector<YoloBox>::iterator it = boxes.begin(); it != boxes.end(); ++it)
         {
-            if (it->label == "person" && it->confidence >= 0.5f)
+            if (it->label == _label)
             {
-                ROS_INFO("Person detected!");
-
                 visualization_msgs::Marker marker;
                 marker.header.frame_id = _linkName;
                 marker.header.stamp = ros::Time();
@@ -78,14 +101,18 @@ namespace yolo
 
                 markers.push_back(marker);
 
-                // Draw a bounding box on the CV image
-                cv::Scalar color(255, 255, 0);
-                cv::Rect box;
-                box.x = std::max<int>((int)it->x, 0);
-                box.y = std::max<int>((int)it->y, 0);
-                box.height = std::min<int>(image.rows - box.y, (int)it->height);
-                box.width = std::min<int>(image.cols - box.x, (int)it->width);
-                cv::rectangle(image, box, color, 2, 8, 0);
+                if (_debug)
+                {
+                    ROS_INFO("WinML: %s detected!", _label.c_str());
+                    // Draw a bounding box on the CV image
+                    cv::Scalar color(255, 255, 0);
+                    cv::Rect box;
+                    box.x = std::max<int>((int)it->x, 0);
+                    box.y = std::max<int>((int)it->y, 0);
+                    box.height = std::min<int>(image.rows - box.y, (int)it->height);
+                    box.width = std::min<int>(image.cols - box.x, (int)it->width);
+                    cv::rectangle(image, box, color, 2, 8, 0);
+                }
             }
         }
 
@@ -94,9 +121,12 @@ namespace yolo
             _detect_pub.publish(markers);
         }
 
-        // Always publish the resized image
-        sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
-        _image_pub.publish(msg);
+        if (_debug)
+        {
+            // Always publish the resized image
+            sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
+            _image_pub.publish(msg);
+        }
     }
 
     std::vector<YoloBox> YoloProcessor::GetRecognizedObjects(std::vector<float> modelOutputs, float threshold)
