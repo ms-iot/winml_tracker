@@ -18,11 +18,13 @@ using namespace winrt;
 
 int main(int argc, char **argv)
 {
+    /*
     ROS_WARN("WINML: Waiting for Debugger");
     while (!IsDebuggerPresent())
     {
         Sleep(5);
     }
+    */
 
     winrt::init_apartment();
     ros::init(argc, argv, "winml_tracker");
