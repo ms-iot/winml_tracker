@@ -12,20 +12,20 @@ namespace pose
     class Pose
     {
     public:
-		Pose() {}
-		Pose(Pose&& p) : bounds(std::move(p.bounds)) {}
+        Pose() {}
+        Pose(Pose&& p) : bounds(std::move(p.bounds)) {}
 
         std::vector<cv::Point2f> bounds;
-		float confidence;
+        float confidence;
     };
 
     class PoseProcessor : public WinMLProcessor
     {
-		static std::vector<float> _gridX;
-		static std::vector<float> _gridY;
+        static std::vector<float> _gridX;
+        static std::vector<float> _gridY;
         tf::Quaternion _modelQuat;
         std::vector<double> _modelScale;
-		std::vector<double> _modelRPY;
+        std::vector<double> _modelRPY;
 
         ros::Publisher _detect_pose_pub;
 
@@ -39,7 +39,7 @@ namespace pose
 
         virtual bool init(ros::NodeHandle& nh, ros::NodeHandle& nhPrivate);
     private:
-		void initPoseTables();
+        void initPoseTables();
 
         bool GetRecognizedObjects(std::vector<float> modelOutputs, Pose& pose);
         int GetOffset(int o, int channel);
