@@ -326,7 +326,7 @@ void PoseProcessor::ProcessOutput(std::vector<float> output, cv::Mat& image)
 
             // because
 
-            for (int i; i < doPose.flatBounds.size(); i++)
+            for (int i = 0; i < doPose.flatBounds.size(); i++)
             {
                 doPose.flatBounds[i].x = pose.bounds[i].x;
                 doPose.flatBounds[i].y = pose.bounds[i].y;
