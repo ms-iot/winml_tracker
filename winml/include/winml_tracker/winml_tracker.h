@@ -10,7 +10,8 @@ public:
     typedef enum 
     {
         Scale,
-        Crop
+        Crop,
+        Resize
     } ImageProcessing;
 
     void setImageProcessing(ImageProcessing process)
@@ -40,6 +41,10 @@ protected:
     float _confidence;
 
     bool _debug;
+    bool _normalize;
+
+    uint _tensorWidth;
+    uint _tensorHeight;
 
     int _channelCount;
     int _rowCount;

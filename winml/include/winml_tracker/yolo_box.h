@@ -16,6 +16,7 @@ namespace yolo
 
     class YoloProcessor : public WinMLProcessor
     {
+        std::string _label;
     public:
         YoloProcessor();
         
