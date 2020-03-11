@@ -1,4 +1,4 @@
-name: Build
+name: winml_tracker CI
 on:
   pull_request:
   push:
