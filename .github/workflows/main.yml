@@ -39,7 +39,7 @@ jobs:
         ROS_PYTHON_VERSION: 3
         CC: cl.exe
         CXX: cl.exe
-  - uses: actions/upload-artifact@v1
-    with:
-      name: drop
-      path: c:\opt\install
+    - uses: actions/upload-artifact@v1
+      with:
+        name: drop
+        path: c:\opt\install
