@@ -42,4 +42,4 @@ jobs:
   - uses: actions/upload-artifact@v1
     with:
       name: drop
-      path: c:\\opt\\install
+      path: c:\opt\install
