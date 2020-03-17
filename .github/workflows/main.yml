@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - seanyen**
   schedule:
     # Run it regularly to detect flaky build breaks.
     - cron:  '0 0 */3 * *'
@@ -32,9 +33,13 @@ jobs:
       with:
         package-name: winml_tracker
         vcs-repo-file-url: ${{ github.workspace }}/ci/deps.rosinstall
-        extra-cmake-args: "-G Ninja -DCMAKE_TOOLCHAIN_FILE=c:/ci/toolchain.cmake -DCATKIN_SKIP_TESTING=ON -DCMAKE_BUILD_TYPE=Release"
+        extra-cmake-args: "-G Ninja -DCMAKE_TOOLCHAIN_FILE=c:/ci/toolchain.cmake -DCATKIN_SKIP_TESTING=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=c:/miniconda/envs/myenv/library"
       env:
         COLCON_DEFAULTS_FILE: ${{ github.workspace }}/ci/defaults.yaml
         ROS_PYTHON_VERSION: 3
         CC: cl.exe
         CXX: cl.exe
+  - uses: actions/upload-artifact@v1
+    with:
+      name: drop
+      path: c:\\opt\\install
