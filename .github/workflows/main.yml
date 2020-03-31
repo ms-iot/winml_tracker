@@ -31,6 +31,16 @@ jobs:
     - uses: ros-tooling/action-ros-ci@master
       with:
         package-name: winml_tracker
+        vcs-repo-file-url: ${{ github.workspace }}/ci/deps.rosinstall
+        extra-cmake-args: "-G Ninja -DCMAKE_TOOLCHAIN_FILE=c:/ci/toolchain.cmake -DCMAKE_BUILD_TYPE=Release"
+      env:
+        COLCON_DEFAULTS_FILE: ${{ github.workspace }}/ci/defaults.yaml
+        ROS_PYTHON_VERSION: 3
+        CC: cl.exe
+        CXX: cl.exe
+    - uses: ros-tooling/action-ros-ci@master
+      with:
+        package-name: winml_tracker
         vcs-repo-file-url: ${{ github.workspace }}/ci/empty.rosinstall
         extra-cmake-args: "-G Ninja -DCMAKE_TOOLCHAIN_FILE=c:/ci/toolchain.cmake -DCMAKE_BUILD_TYPE=Release"
       env:
