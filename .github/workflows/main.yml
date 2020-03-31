@@ -54,10 +54,10 @@ jobs:
       run: |
         cd c:\opt\install
         7z a -tzip $GITHUB_WORKSPACE\package\tools\drop.zip *
-        cd $GITHUB_WORKSPACE\package
         echo $destination = 'c:\opt\ros\melodic\x64' > $GITHUB_WORKSPACE\package\tools\chocolateyInstall.ps1
         type $GITHUB_WORKSPACE\package\chocolateyInstall_template.ps1 >> $GITHUB_WORKSPACE\package\tools\chocolateyInstall.ps1
         mkdir c:\opt\output
+        cd $GITHUB_WORKSPACE\package
         choco pack --trace --out c:\opt\output winml.nuspec 
     - uses: actions/upload-artifact@v1
       with:
