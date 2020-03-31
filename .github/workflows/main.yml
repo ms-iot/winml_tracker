@@ -1,3 +1,4 @@
+  
 name: winml_tracker CI
 on:
   pull_request:
@@ -49,18 +50,16 @@ jobs:
         CC: cl.exe
         CXX: cl.exe
     - name: Build Chocolatey Package
-      shell: bash
+      shell: cmd
       run: |
-        cd c:/opt/install
-        7z a -tzip c:/opt/drop.zip *
-        cp c:/opt/drop.zip $GITHUB_WORKSPACE/package/tools/drop.zip
-        cd $GITHUB_WORKSPACE/package
-        rm $GITHUB_WORKSPACE/package/tools/chocolateyInstall.ps1
-        echo $destination = 'c:\opt\ros\melodic\x64' >> $GITHUB_WORKSPACE/package/tools/chocolateyInstall.ps1
-        cat $GITHUB_WORKSPACE/package/chocolateyInstall_template.ps1 >> $GITHUB_WORKSPACE/package/tools/chocolateyInstall.ps1
-        mkdir c:/opt/output
-        choco pack --trace --out c:/opt/output winml.nuspec 
+        cd c:\opt\install
+        7z a -tzip $GITHUB_WORKSPACE\package\tools\drop.zip *
+        cd $GITHUB_WORKSPACE\package
+        echo $destination = 'c:\opt\ros\melodic\x64' > $GITHUB_WORKSPACE\package\tools\chocolateyInstall.ps1
+        type $GITHUB_WORKSPACE\package\chocolateyInstall_template.ps1 >> $GITHUB_WORKSPACE\package\tools\chocolateyInstall.ps1
+        mkdir c:\opt\output
+        choco pack --trace --out c:\opt\output winml.nuspec 
     - uses: actions/upload-artifact@v1
       with:
-        name: drop
-        path: c:/output/WinML.1.0.0.nupkg
+        name: WinML.1.0.0.nupkg
+        path: c:/opt/output
