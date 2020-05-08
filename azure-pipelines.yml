@@ -3,7 +3,7 @@ resources:
     - repository: templates
       type: github
       name: lilustga/rosonwindows_ci
-      endpoint: <your github account>
+      endpoint: lilustga
 
 jobs:
 - template: build.yml@templates  # Template reference
