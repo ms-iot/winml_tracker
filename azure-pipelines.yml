@@ -1,4 +1,4 @@
-	resources:
+resources:
   repositories:
     - repository: templates
       type: github
