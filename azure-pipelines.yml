@@ -1,0 +1,11 @@
+	resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: lilustga/rosonwindows_ci
+      endpoint: <your github account>
+
+jobs:
+- template: build.yml@templates  # Template reference
+  parameters:
+    ros_metapackage: 'ros-melodic-desktop'
