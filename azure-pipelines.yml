@@ -9,4 +9,4 @@ jobs:
 - template: build.yml@templates  # Template reference
   parameters:
     ros_metapackage: 'ros-melodic-desktop'
-    
+    build_chocolatey_pkg: true
