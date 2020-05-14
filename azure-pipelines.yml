@@ -2,8 +2,8 @@ resources:
   repositories:
     - repository: templates
       type: github
-      name: lilustga/rosonwindows_ci
-      endpoint: lilustga
+      name: ms-iot/rosonwindows_ci
+      endpoint: ms-iot
 
 jobs:
 - template: build.yml@templates  # Template reference
