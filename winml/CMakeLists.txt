@@ -1,14 +1,12 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(winml_tracker)
 
-# Default to C++17
+## Compile as at least C++17 for cppwinrt
 if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
 
-## Compile as at least C++17 for cppwinrt
 add_compile_options(/Od)
-add_compile_options(/std:c++latest)
 add_compile_options(/await)
 add_definitions("/D_ENABLE_EXTENDED_ALIGNED_STORAGE")
 add_definitions("/D_USE_MATH_DEFINES")
