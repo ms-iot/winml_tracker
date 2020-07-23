@@ -61,7 +61,7 @@ TEST(TrackerTester, poseTest)
     image_transport::Publisher image_pub;
     image_pub = it.advertise("debug/image", 1, true);
     ros::Subscriber sub = nh.subscribe("tracked_objects", 0, &MarkerHelper::cb, &mh);
-    cv::Mat image_data = cv::imread("C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\sample_image_1.JPG");
+    cv::Mat image_data = cv::imread( "C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\sample_image_1.JPG");
 
     sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_data).toImageMsg();
     EXPECT_TRUE(nullptr != msg);
