@@ -8,35 +8,15 @@
 
   <buildtool_depend>catkin</buildtool_depend>
 
-  <build_depend>cv_bridge</build_depend>
-  <build_depend>geometry_msgs</build_depend>
-  <build_depend>image_transport</build_depend>
-  <build_depend>interactive_markers</build_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>roslib</build_depend>
-  <build_depend>std_msgs</build_depend>
-  <build_depend>visualization_msgs</build_depend>
-  <build_depend>eigen</build_depend>
-  <build_depend>winml_msgs</build_depend>
-  <build_export_depend>cv_bridge</build_export_depend>
-  <build_export_depend>geometry_msgs</build_export_depend>
-  <build_export_depend>image_transport</build_export_depend>
-  <build_export_depend>interactive_markers</build_export_depend>
-  <build_export_depend>roscpp</build_export_depend>
-  <build_export_depend>roslib</build_export_depend>
-  <build_export_depend>std_msgs</build_export_depend>
-  <build_export_depend>visualization_msgs</build_export_depend>
-  <exec_depend>message_runtime</exec_depend>
-  <exec_depend>eigen</exec_depend>
-  <exec_depend>cv_bridge</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>image_transport</exec_depend>
-  <exec_depend>interactive_markers</exec_depend>
-  <exec_depend>roscpp</exec_depend>
-  <exec_depend>roslib</exec_depend>
-  <exec_depend>std_msgs</exec_depend>
-  <exec_depend>visualization_msgs</exec_depend>
-  <exec_depend>winml_msgs</exec_depend>
+  <depend>eigen</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>winml_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>roscpp</depend>
+  <depend>tf</depend>
+  <depend>image_transport</depend>
 
   <test_depend>rosunit</test_depend>
   <export>

@@ -1,5 +1,3 @@
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 1 // The C++ Standard doesn't provide equivalent non-deprecated functionality yet.
-
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/calib3d/calib3d.hpp>

@@ -1,7 +1,3 @@
-#pragma comment(lib, "windowsapp")
-#define _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS 1 // The C++ Standard doesn't provide equivalent non-deprecated functionality yet.
-#define _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING 1
-
 #include <gtest/gtest.h>
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
@@ -15,8 +11,8 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.AI.MachineLearning.h>
 
-#include "winml_tracker/winml_tracker.h"
-#include "winml_tracker/pose_parser.h"
+#include <winml_tracker/winml_tracker.h>
+#include <winml_tracker/pose_parser.h>
 
 #include <string>
 #include <codecvt>
@@ -58,17 +54,17 @@ public:
 
 TEST(TrackerTester, poseTest)
 {
-     ros::NodeHandle nh;
+    ros::NodeHandle nh;
 
     MarkerHelper mh;
     image_transport::ImageTransport it(nh);
     image_transport::Publisher image_pub;
     image_pub = it.advertise("debug/image", 1, true);
     ros::Subscriber sub = nh.subscribe("tracked_objects", 0, &MarkerHelper::cb, &mh);
-    cv::Mat image_data = cv::imread( "C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\sample_image_1.JPG");
+    cv::Mat image_data = cv::imread("C:\\ws\\eden_ws\\src\\winml_tracker\\testdata\\sample_image_1.JPG");
 
     sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image_data).toImageMsg();
-    EXPECT_NE(msg, nullptr);
+    EXPECT_TRUE(nullptr != msg);
     image_pub.publish(msg);
     //ros::spinOnce();
 
