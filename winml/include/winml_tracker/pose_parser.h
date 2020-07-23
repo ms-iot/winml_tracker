@@ -2,6 +2,10 @@
 
 #include <string>
 #include <vector>
+#include <cv_bridge/cv_bridge.h>
+#include <tf/tf.h>
+
+#include "winml_tracker.h"
 
 namespace pose
 {
